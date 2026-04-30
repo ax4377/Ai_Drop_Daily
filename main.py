@@ -21,6 +21,22 @@ async def main():
     # Initialize database
     init_db()
     
+    # Test post function
+    async def test_post_now():
+        try:
+            logging.info("Running test post now...")
+            tools = await fetch_all_tools()
+            if tools:
+                await post_morning_digest(tools[:1])
+                logging.info("✅ Test post successful! Check @Ai_Drop_Daily channel.")
+            else:
+                logging.warning("⚠️ No tools fetched. Check Gemini API key in Railway variables.")
+        except Exception as e:
+            logging.error(f"❌ Test post failed: {e}")
+    
+    # Run test post once at startup - COMMENTED OUT AFTER TESTING
+    # await test_post_now()
+    
     # Set up and start scheduler
     scheduler = setup_scheduler()
     scheduler.start()

@@ -1,16 +1,15 @@
-import google.generativeai as genai
+from google import genai
 import json
-import time
 import logging
+import time
 from config import GEMINI_API_KEY
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure Gemini API
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Setup Gemini client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def analyze_tool(tool_name, tool_summary, tool_link):
     """
@@ -43,7 +42,10 @@ def analyze_tool(tool_name, tool_summary, tool_link):
         """
         
         # Generate content with Gemini
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
         
         # Wait for 2 seconds to avoid rate limiting
         time.sleep(2)
