@@ -76,12 +76,12 @@ def setup_scheduler():
     timezone = pytz.timezone("Asia/Kolkata")
     scheduler = AsyncIOScheduler(timezone=timezone)
     
-    # Add morning job at 09:00 IST
-    scheduler.add_job(morning_job, 'cron', hour=9, minute=0, id='morning_job')
-    logger.info("Morning job scheduled for 09:00 IST")
+    # Add morning job at 01:17 IST
+    scheduler.add_job(morning_job, 'cron', hour=1, minute=17, id='morning_job')
+    logger.info("Morning job scheduled for 01:17 IST")
     
-    # Add evening job at 18:00 IST
-    scheduler.add_job(evening_job, 'cron', hour=18, minute=0, id='evening_job')
-    logger.info("Evening job scheduled for 18:00 IST")
+    # Add evening job at 01:20 IST
+    scheduler.add_job(evening_job, 'cron', hour=1, minute=20, id='evening_job')
+    logger.info("Evening job scheduled for 01:20 IST")
     
     return scheduler
