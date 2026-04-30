@@ -5,10 +5,10 @@
 
 # Post Times (24 hour format)
 FIRST_POST_TIME_HOUR = 2       # 1 AM
-FIRST_POST_TIME_MINUTE = 28    # 17 minutes
+FIRST_POST_TIME_MINUTE = 37    # 17 minutes
 
 SECOND_POST_TIME_HOUR = 2     # 6 PM
-SECOND_POST_TIME_MINUTE = 30    # 0 minutes
+SECOND_POST_TIME_MINUTE = 39    # 0 minutes
 
 # How many tools to post each time
 FIRST_MAX_TOOLS = 2    # Morning post mein kitne tools
