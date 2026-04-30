@@ -4,13 +4,17 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import pytz
 from fetcher import fetch_all_tools, fetch_best_tool
 from poster import post_morning_digest, post_evening_pick
+from settings import (
+    FIRST_POST_TIME_HOUR, FIRST_POST_TIME_MINUTE,
+    SECOND_POST_TIME_HOUR, SECOND_POST_TIME_MINUTE
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def morning_job():
-    """Job to run every morning at 9 AM IST."""
+    """Job to run every morning at configured IST time."""
     logger.info("Starting morning job...")
     try:
         # Fetch new tools
@@ -18,7 +22,8 @@ async def morning_job():
         logger.info(f"Fetched {len(tools)} new tools for morning post")
         
         # Take first 5 tools maximum
-        tools_to_post = tools[:5]
+        from settings import FIRST_MAX_TOOLS
+        tools_to_post = tools[:FIRST_MAX_TOOLS]
         
         # Post to channel
         await post_morning_digest(tools_to_post)
@@ -28,7 +33,7 @@ async def morning_job():
         logger.error(f"Error in morning job: {e}")
 
 async def evening_job():
-    """Job to run every evening at 6 PM IST."""
+    """Job to run every evening at configured IST time."""
     logger.info("Starting evening job...")
     try:
         # Fetch new tools
@@ -36,8 +41,6 @@ async def evening_job():
         logger.info(f"Fetched {len(tools)} new tools for evening post")
         
         # Score tools using analyze_tool if not already scored
-        # For simplicity, we'll just take the top 2 by fetching and analyzing
-        # In a more complex implementation, we might check database for already scored tools
         scored_tools = []
         from gemini_helper import analyze_tool
         
@@ -58,8 +61,9 @@ async def evening_job():
                 scored_tools.append(tool_with_score)
         
         # Sort by score descending and pick top 2
+        from settings import SECOND_MAX_TOOLS
         scored_tools.sort(key=lambda x: x['score'], reverse=True)
-        top_tools = scored_tools[:2]
+        top_tools = scored_tools[:SECOND_MAX_TOOLS]
         
         logger.info(f"Selected top {len(top_tools)} tools for evening post")
         
@@ -72,16 +76,17 @@ async def evening_job():
 
 def setup_scheduler():
     """Set up and return the configured scheduler."""
-    # Set timezone to Asia/Kolkata (IST)
-    timezone = pytz.timezone("Asia/Kolkata")
+    # Set timezone from settings
+    from settings import TIMEZONE
+    timezone = pytz.timezone(TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=timezone)
     
-    # Add morning job at 01:17 IST
-    scheduler.add_job(morning_job, 'cron', hour=1, minute=17, id='morning_job')
-    logger.info("Morning job scheduled for 01:17 IST")
+    # Add morning job at configured IST time
+    scheduler.add_job(morning_job, 'cron', hour=FIRST_POST_TIME_HOUR, minute=FIRST_POST_TIME_MINUTE, id='morning_job')
+    logger.info(f"Morning job scheduled for {FIRST_POST_TIME_HOUR:02d}:{FIRST_POST_TIME_MINUTE:02d} IST")
     
-    # Add evening job at 01:20 IST
-    scheduler.add_job(evening_job, 'cron', hour=1, minute=20, id='evening_job')
-    logger.info("Evening job scheduled for 01:20 IST")
+    # Add evening job at configured IST time
+    scheduler.add_job(evening_job, 'cron', hour=SECOND_POST_TIME_HOUR, minute=SECOND_POST_TIME_MINUTE, id='evening_job')
+    logger.info(f"Evening job scheduled for {SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d} IST")
     
     return scheduler
