@@ -1,0 +1,6 @@
+python-telegram-bot==20.7
+google-generativeai
+google-genai
+Pillow
+APScheduler==3.10.4
+pytz
