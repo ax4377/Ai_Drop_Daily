@@ -11,6 +11,36 @@ from database import save_tool
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def generate_tags(price_type, category):
+    """
+    Generate hashtags based on price type and category.
+    Returns exactly 3 tags: price tag, category tag, and #AITools.
+    """
+    # Price tag
+    if price_type == "Free":
+        price_tag = "#free"
+    elif price_type == "Paid":
+        price_tag = "#paid"
+    else:  # Freemium
+        price_tag = "#freemium"
+    
+    # Category tag - convert to lowercase, take first word, remove spaces
+    category_words = category.strip().split()
+    if category_words:
+        # Take first word and make it lowercase
+        category_base = category_words[0].lower()
+        # Remove any non-alphanumeric characters
+        category_base = ''.join(c for c in category_base if c.isalnum())
+        category_tag = f"#{category_base}" if category_base else "#other"
+    else:
+        category_tag = "#other"
+    
+    # General tag
+    general_tag = "#AITools"
+    
+    return f"{price_tag} {category_tag} {general_tag}"
+
+
 async def post_tools_to_channel(tools_list, session_type):
     """
     Post a list of tools to the Telegram channel.
@@ -41,11 +71,12 @@ async def post_tools_to_channel(tools_list, session_type):
                 continue
             
             # Prepare the caption
+            tags = generate_tags(tool_info['price_type'], tool_info.get('category', 'Other'))
             caption = f"""{tool_info['emoji']} {tool['name']}
 
 📝 {tool_info['short_description']}
 
-🎯 Use: {tool_info['use_case']}
+🎯 Use Case: {tool_info['use_case']}
 
 💰 Price: {tool_info['price_type']}
 
@@ -53,7 +84,7 @@ async def post_tools_to_channel(tools_list, session_type):
 
 🔗 {tool['link']}
 
-#AITools #NewAI #AIDrop"""
+{tags}"""
             
             # Send the image to the channel
             with open(image_path, 'rb') as photo:
@@ -91,44 +122,30 @@ async def post_tools_to_channel(tools_list, session_type):
 
 async def post_morning_digest(tools_list):
     """
-    Post the morning digest: first send a header message, then post the tools.
+    Post the morning digest: post the tools directly without header message.
     """
     from config import TELEGRAM_BOT_TOKEN
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     
     try:
-        # Send header message
-        await bot.send_message(
-            chat_id="@Ai_Drop_Daily",
-            text="🌅 Good Morning! Aaj ke naye AI Tools aa gaye hain 👇"
-        )
-        logger.info("Morning header message sent")
-        
         # Post the tools (limit to morning max)
-        max_tools = 5  # From config, but we can import if needed
-        await post_tools_to_channel(tools_list[:max_tools], "morning")
+        from settings import FIRST_MAX_TOOLS
+        await post_tools_to_channel(tools_list[:FIRST_MAX_TOOLS], "morning")
         
     except Exception as e:
         logger.error(f"Error in morning digest: {e}")
 
 async def post_evening_pick(tools_list):
     """
-    Post the evening pick: first send a header message, then post the tools.
+    Post the evening pick: post the tools directly without header message.
     """
     from config import TELEGRAM_BOT_TOKEN
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     
     try:
-        # Send header message
-        await bot.send_message(
-            chat_id="@Ai_Drop_Daily",
-            text="🌆 Evening Best Pick! Aaj ka sabse best AI tool 👇"
-        )
-        logger.info("Evening header message sent")
-        
         # Post the tools (limit to evening max)
-        max_tools = 2  # From config
-        await post_tools_to_channel(tools_list[:max_tools], "evening")
+        from settings import SECOND_MAX_TOOLS
+        await post_tools_to_channel(tools_list[:SECOND_MAX_TOOLS], "evening")
         
     except Exception as e:
         logger.error(f"Error in evening pick: {e}")
