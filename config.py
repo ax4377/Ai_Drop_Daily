@@ -1,21 +1,29 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load .env file for local development
+# On Railway, environment variables are set directly in dashboard
 load_dotenv()
 
-# Telegram configuration
+# Telegram settings
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHANNEL_ID = "@Ai_Drop_Daily"
 
-# Gemini API configuration
+# Gemini settings
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Timezone and scheduling
+# Timezone
 TIMEZONE = "Asia/Kolkata"
+
+# Post settings
 MORNING_POST_TIME = "09:00"
 EVENING_POST_TIME = "18:00"
-
-# Posting limits
 MORNING_MAX_TOOLS = 5
 EVENING_MAX_TOOLS = 2
+
+# Validate that required keys exist
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
+
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable not set!")
