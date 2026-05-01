@@ -13,6 +13,9 @@ from settings import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global scheduler instance for command access
+scheduler_instance = None
+
 async def morning_job():
     """Job to run every morning at configured IST time."""
     logger.info("Starting morning job...")
@@ -76,6 +79,7 @@ async def evening_job():
 
 def setup_scheduler():
     """Set up and return the configured scheduler."""
+    global scheduler_instance
     # Set timezone from settings
     from settings import TIMEZONE
     timezone = pytz.timezone(TIMEZONE)
@@ -89,4 +93,5 @@ def setup_scheduler():
     scheduler.add_job(evening_job, 'cron', hour=SECOND_POST_TIME_HOUR, minute=SECOND_POST_TIME_MINUTE, id='evening_job')
     logger.info(f"Evening job scheduled for {SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d} IST")
     
+    scheduler_instance = scheduler
     return scheduler
