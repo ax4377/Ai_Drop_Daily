@@ -38,7 +38,7 @@ def generate_tags(price_type, category):
     # General tag
     general_tag = "#AITools"
     
-    return f"{price_tag} {category_tag} {general_tag}"
+    return f"{price_tag} {category_tag} {general_tag} @Ai_Drop_Daily"
 
 
 async def post_tools_to_channel(tools_list, session_type):
