@@ -19,7 +19,7 @@ async def check_owner(update: Update) -> bool:
         return False
     return True
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - show welcome message"""
     if not await check_owner(update):
         return
@@ -37,7 +37,7 @@ All commands work instantly without restart!
     """
     await update.message.reply_text(welcome_message.strip())
 
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command - show current schedule"""
     if not await check_owner(update):
         return
@@ -50,7 +50,7 @@ Second Post: {SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d} IST
     """
     await update.message.reply_text(status_message.strip())
 
-async def settime_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_settime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /settime command - change post times"""
     if not await check_owner(update):
         return
@@ -131,7 +131,7 @@ No restart needed!
             "❌ An error occurred while updating times. Please try again."
         )
 
-async def testnow_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /testnow command - post a test tool immediately"""
     if not await check_owner(update):
         return
@@ -157,7 +157,7 @@ async def testnow_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Failed to post test tool. Check logs for details."
         )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command - show all commands"""
     if not await check_owner(update):
         return
