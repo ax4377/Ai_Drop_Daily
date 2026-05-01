@@ -4,8 +4,8 @@
 # ============================================
 
 # Post Times (24 hour format)
-FIRST_POST_TIME_HOUR = 1       # 1 AM
-FIRST_POST_TIME_MINUTE = 17    # 17 minutes
+FIRST_POST_TIME_HOUR = 9       # 9 AM
+FIRST_POST_TIME_MINUTE = 0     # 0 minutes
 
 SECOND_POST_TIME_HOUR = 18     # 6 PM
 SECOND_POST_TIME_MINUTE = 0    # 0 minutes
