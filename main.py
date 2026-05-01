@@ -1,13 +1,10 @@
 import asyncio
 import logging
-from scheduler import setup_scheduler
 from database import init_db
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler
+from bot_commands import cmd_start, cmd_status, cmd_settime, cmd_testnow, cmd_help
 from config import TELEGRAM_BOT_TOKEN
-from bot_commands import (
-    start_command, status_command, settime_command, testnow_command, help_command
-)
+from scheduler import setup_scheduler
 
 # Configure logging
 logging.basicConfig(
@@ -22,40 +19,34 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Main entry point for the AI Drop Daily Bot."""
-    logger.info("AI Drop Daily Bot Started Successfully")
-    
-    # Initialize database
-    init_db()
-    
-    # Set up and start scheduler
-    scheduler = setup_scheduler()
-    scheduler.start()
-    
-    logger.info("Scheduler started. Bot is now running and waiting for scheduled jobs...")
-    
-    # Set up Telegram bot application for commands
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(CommandHandler("settime", settime_command))
-    application.add_handler(CommandHandler("testnow", testnow_command))
-    application.add_handler(CommandHandler("help", help_command))
-    
-    logger.info("Telegram bot started. Listening for commands...")
-    
-    # Run the bot until stopped (this will run until we get an interrupt signal)
     try:
-        await application.run_polling()
+        # Step 1: Initialize database
+        init_db()
+        
+        # Step 2: Build Telegram Application
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        
+        # Step 3: Add all command handlers
+        application.add_handler(CommandHandler("start", cmd_start))
+        application.add_handler(CommandHandler("status", cmd_status))
+        application.add_handler(CommandHandler("settime", cmd_settime))
+        application.add_handler(CommandHandler("testnow", cmd_testnow))
+        application.add_handler(CommandHandler("help", cmd_help))
+        
+        # Step 4: Setup scheduler but pass application.job_queue to it
+        setup_scheduler(application)
+        
+        # Step 5: Start the application with polling
+        async with application:
+            await application.start()
+            await application.updater.start_polling(drop_pending_updates=True)
+            logging.info("AI Drop Daily Bot Started Successfully")
+            logging.info("Bot is now running and listening for commands...")
+            await asyncio.sleep(float("inf"))
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt. Shutting down gracefully...")
     except Exception as e:
         logger.error(f"Unexpected error in bot loop: {e}")
-    finally:
-        # Shutdown scheduler
-        scheduler.shutdown()
-        logger.info("Scheduler shut down. Bot stopped.")
 
 if __name__ == "__main__":
     asyncio.run(main())

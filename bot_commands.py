@@ -1,11 +1,12 @@
 import logging
+import datetime
+import pytz
 from telegram import Update
 from telegram.ext import ContextTypes
 from settings import (
     FIRST_POST_TIME_HOUR, FIRST_POST_TIME_MINUTE,
     SECOND_POST_TIME_HOUR, SECOND_POST_TIME_MINUTE
 )
-from scheduler import scheduler_instance
 
 # Owner ID - only this user can use commands
 OWNER_ID = 1787566342
@@ -84,20 +85,26 @@ async def settime_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not (0 <= hour2 <= 23 and 0 <= minute2 <= 59):
             raise ValueError("Second time: Hours 0-23, Minutes 0-59")
         
-        # Remove existing jobs
-        scheduler_instance.remove_job('morning_job')
-        scheduler_instance.remove_job('evening_job')
+        # Import pytz for timezone
+        import pytz
+        tz = pytz.timezone("Asia/Kolkata")
+        
+        # Remove existing jobs by name
+        current_jobs = context.job_queue.jobs()
+        for job in current_jobs:
+            if job.name in ['morning_job', 'evening_job']:
+                job.schedule_removal()
         
         # Add new jobs with updated times
-        scheduler_instance.add_job(
-            morning_job, 'cron', 
-            hour=hour1, minute=minute1, 
-            id='morning_job'
+        context.job_queue.run_daily(
+            morning_job,
+            time=datetime.time(hour=hour1, minute=minute1, tzinfo=tz),
+            name="morning_job"
         )
-        scheduler_instance.add_job(
-            evening_job, 'cron', 
-            hour=hour2, minute=minute2, 
-            id='evening_job'
+        context.job_queue.run_daily(
+            evening_job,
+            time=datetime.time(hour=hour2, minute=minute2, tzinfo=tz),
+            name="evening_job"
         )
         
         # Log the change
