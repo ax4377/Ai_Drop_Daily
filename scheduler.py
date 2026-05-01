@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import datetime
 import pytz
@@ -13,6 +14,9 @@ from settings import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Owner ID - posting done ka notification yahan jaayega
+OWNER_ID = 1787566342
+
 async def morning_job(context):
     """Job to run every morning at configured IST time."""
     logger.info("Starting morning job...")
@@ -20,16 +24,30 @@ async def morning_job(context):
         # Fetch new tools
         tools = await fetch_all_tools()
         logger.info(f"Fetched {len(tools)} new tools for morning post")
-        
-        # Take first 5 tools maximum
-        tools_to_post = tools[:FIRST_MAX_TOOLS]
-        
+
+        # Dynamic settings se lo (setpost se change hone ke baad bhi sahi rahe)
+        import settings
+        tools_to_post = tools[:settings.FIRST_MAX_TOOLS]
+
         # Post to channel
         await post_morning_digest(tools_to_post)
-        
+
         logger.info(f"Morning job completed. Posted {len(tools_to_post)} tools.")
+
+        # Owner ko success notify karo
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f"✅ Post 1 done! {len(tools_to_post)} tools posted.\nCheck @Ai_Drop_Daily"
+        )
+
     except Exception as e:
         logger.error(f"Error in morning job: {e}")
+        # Owner ko failure notify karo
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f"❌ Post 1 failed!\nError: {str(e)}"
+        )
+
 
 async def evening_job(context):
     """Job to run every evening at configured IST time."""
@@ -38,46 +56,57 @@ async def evening_job(context):
         # Fetch new tools
         tools = await fetch_all_tools()
         logger.info(f"Fetched {len(tools)} new tools for evening post")
-        
+
         # Score tools using analyze_tool if not already scored
         scored_tools = []
         from gemini_helper import analyze_tool
-        
+
         for tool in tools:
             try:
-                # Analyze the tool to get score
                 tool_info = analyze_tool(tool['name'], tool['summary'], tool['link'])
                 tool_with_score = tool.copy()
                 tool_with_score['score'] = tool_info['score']
                 scored_tools.append(tool_with_score)
-                # Small delay to avoid rate limiting
                 await asyncio.sleep(2)
             except Exception as e:
                 logger.error(f"Error scoring tool {tool['name']}: {e}")
-                # Still add the tool with a default score
                 tool_with_score = tool.copy()
                 tool_with_score['score'] = 5
                 scored_tools.append(tool_with_score)
-        
-        # Sort by score descending and pick top 2
+
+        # Sort by score descending
         scored_tools.sort(key=lambda x: x['score'], reverse=True)
-        top_tools = scored_tools[:SECOND_MAX_TOOLS]
-        
+
+        # Dynamic settings se lo
+        import settings
+        top_tools = scored_tools[:settings.SECOND_MAX_TOOLS]
+
         logger.info(f"Selected top {len(top_tools)} tools for evening post")
-        
+
         # Post to channel
         await post_evening_pick(top_tools)
-        
+
         logger.info(f"Evening job completed. Posted {len(top_tools)} tools.")
+
+        # Owner ko success notify karo
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f"✅ Post 2 done! {len(top_tools)} tools posted.\nCheck @Ai_Drop_Daily"
+        )
+
     except Exception as e:
         logger.error(f"Error in evening job: {e}")
+        # Owner ko failure notify karo
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f"❌ Post 2 failed!\nError: {str(e)}"
+        )
+
 
 def setup_scheduler(application):
     """Setup scheduler using the application's job queue."""
-    import pytz
-    from telegram.ext import JobQueue
     tz = pytz.timezone("Asia/Kolkata")
-    
+
     # Schedule morning job
     application.job_queue.run_daily(
         morning_job,
@@ -89,7 +118,7 @@ def setup_scheduler(application):
         name="morning_job"
     )
     logger.info(f"Morning job scheduled for {FIRST_POST_TIME_HOUR:02d}:{FIRST_POST_TIME_MINUTE:02d} IST")
-    
+
     # Schedule evening job
     application.job_queue.run_daily(
         evening_job,
