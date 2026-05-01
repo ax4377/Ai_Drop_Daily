@@ -2,7 +2,7 @@ import asyncio
 import logging
 from database import init_db
 from telegram.ext import Application, CommandHandler
-from bot_commands import cmd_start, cmd_status, cmd_settime, cmd_testnow, cmd_help
+from bot_commands import cmd_start, cmd_status, cmd_setpost, cmd_testnow, cmd_help
 from config import TELEGRAM_BOT_TOKEN
 from scheduler import setup_scheduler
 
@@ -29,7 +29,7 @@ async def main():
         # Step 3: Add all command handlers
         application.add_handler(CommandHandler("start", cmd_start))
         application.add_handler(CommandHandler("status", cmd_status))
-        application.add_handler(CommandHandler("settime", cmd_settime))
+        application.add_handler(CommandHandler("setpost", cmd_setpost))
         application.add_handler(CommandHandler("testnow", cmd_testnow))
         application.add_handler(CommandHandler("help", cmd_help))
         
