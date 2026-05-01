@@ -30,7 +30,7 @@ def analyze_tool(tool_name, tool_summary, tool_link):
         Analyze this AI tool and return a JSON object with the following keys:
         - short_description: max 2 lines explaining what the tool does in English only
         - use_case: one line who should use this (in English)
-        - price_type: exactly one of: Free, Paid. If the tool has a free tier use Free, if it requires payment use Paid. Never use Freemium.
+        - price_type: exactly one of these values: Free, Freemium, Paid
         - score: integer from 1 to 10 based on how useful and innovative the tool is
         - emoji: one relevant emoji for the tool
         - category: string like Image Generation, Writing, Coding, Video, Audio, Productivity, Research
@@ -66,8 +66,8 @@ def analyze_tool(tool_name, tool_summary, tool_link):
             required_keys = ["short_description", "use_case", "price_type", "score", "emoji", "category"]
             if all(key in result for key in required_keys):
                 # Ensure price_type is one of the allowed values
-                    if result["price_type"] not in ["Free", "Paid"]:
-                        result["price_type"] = "Free"
+                if result["price_type"] not in ["Free", "Freemium", "Paid"]:
+                    result["price_type"] = "Free"
                 # Ensure score is between 1 and 10
                 result["score"] = max(1, min(10, int(result["score"])))
                 # Ensure category is provided, default to "Other" if missing or empty
