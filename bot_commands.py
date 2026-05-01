@@ -1,12 +1,9 @@
 import logging
 import datetime
 import pytz
+import settings  # Dynamic update ke liye module import
 from telegram import Update
 from telegram.ext import ContextTypes
-from settings import (
-    FIRST_POST_TIME_HOUR, FIRST_POST_TIME_MINUTE,
-    SECOND_POST_TIME_HOUR, SECOND_POST_TIME_MINUTE
-)
 
 # Import scheduler jobs for rescheduling
 from scheduler import morning_job, evening_job
@@ -32,7 +29,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Available Commands:
 /status - Check current post times and bot status
-/settime HH:MM HH:MM - Set new post times (e.g., /settime 09:00 18:00)
+/setpost HH:MM HH:MM max1 max2 - Set times and tool counts
+    Example: /setpost 09:10 15:10 2 3
 /testnow - Post a test AI tool right now
 /help - Show this help message
 
@@ -40,131 +38,146 @@ All commands work instantly without restart!
     """
     await update.message.reply_text(welcome_message.strip())
 
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command - show current schedule"""
     if not await check_owner(update):
         return
 
-    # Get current scheduled jobs
-    current_jobs = context.job_queue.jobs()
-    morning_time = f"{FIRST_POST_TIME_HOUR:02d}:{FIRST_POST_TIME_MINUTE:02d}"
-    evening_time = f"{SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d}"
-
-    for job in current_jobs:
-        if job.name == "morning_job" and hasattr(job, 'next_t'):
-            try:
-                tz = pytz.timezone("Asia/Kolkata")
-                t = job.next_t.astimezone(tz)
-                morning_time = f"{t.hour:02d}:{t.minute:02d}"
-            except Exception:
-                pass
-        if job.name == "evening_job" and hasattr(job, 'next_t'):
-            try:
-                tz = pytz.timezone("Asia/Kolkata")
-                t = job.next_t.astimezone(tz)
-                evening_time = f"{t.hour:02d}:{t.minute:02d}"
-            except Exception:
-                pass
+    morning_time = f"{settings.FIRST_POST_TIME_HOUR:02d}:{settings.FIRST_POST_TIME_MINUTE:02d}"
+    evening_time = f"{settings.SECOND_POST_TIME_HOUR:02d}:{settings.SECOND_POST_TIME_MINUTE:02d}"
+    max1 = settings.FIRST_MAX_TOOLS
+    max2 = settings.SECOND_MAX_TOOLS
 
     status_message = f"""
 ⏰ Current Schedule:
-🌅 First Post: {morning_time} IST
-🌆 Second Post: {evening_time} IST
+
+🌅 Post 1: {morning_time} IST → {max1} tools
+🌆 Post 2: {evening_time} IST → {max2} tools
+
 🟢 Bot is running!
     """
     await update.message.reply_text(status_message.strip())
 
-async def cmd_settime(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /settime command - change post times instantly"""
+
+async def cmd_setpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /setpost command - change post times and max tools count.
+
+    Format: /setpost HH:MM HH:MM max1 max2
+    Example: /setpost 09:10 15:10 2 3
+    """
     if not await check_owner(update):
         return
 
     try:
-        # Get arguments
         args = context.args
-        if len(args) != 2:
+
+        if len(args) != 4:
             await update.message.reply_text(
-                "❌ Usage: /settime HH:MM HH:MM\n"
-                "Example: /settime 09:00 18:00"
+                "❌ Galat format!\n\n"
+                "✅ Sahi format:\n"
+                "/setpost HH:MM HH:MM max1 max2\n\n"
+                "📌 Example:\n"
+                "/setpost 09:10 15:10 2 3\n\n"
+                "Matlab:\n"
+                "• Post 1 → 09:10 IST, 2 tools\n"
+                "• Post 2 → 15:10 IST, 3 tools"
             )
             return
 
-        # Parse first time
+        # Time 1 parse
         time1_parts = args[0].split(':')
         if len(time1_parts) != 2:
-            await update.message.reply_text("❌ Invalid format! Use HH:MM\nExample: /settime 09:00 18:00")
+            await update.message.reply_text("❌ Post 1 time galat hai! HH:MM format use karo.")
             return
         hour1 = int(time1_parts[0])
         minute1 = int(time1_parts[1])
 
-        # Parse second time
+        # Time 2 parse
         time2_parts = args[1].split(':')
         if len(time2_parts) != 2:
-            await update.message.reply_text("❌ Invalid format! Use HH:MM\nExample: /settime 09:00 18:00")
+            await update.message.reply_text("❌ Post 2 time galat hai! HH:MM format use karo.")
             return
         hour2 = int(time2_parts[0])
         minute2 = int(time2_parts[1])
 
-        # Validate ranges
+        # Max tools parse
+        max1 = int(args[2])
+        max2 = int(args[3])
+
+        # Validation
         if not (0 <= hour1 <= 23 and 0 <= minute1 <= 59):
-            await update.message.reply_text("❌ First time invalid! Hours: 0-23, Minutes: 0-59")
+            await update.message.reply_text("❌ Post 1 time invalid! Hours: 0-23, Minutes: 0-59")
             return
         if not (0 <= hour2 <= 23 and 0 <= minute2 <= 59):
-            await update.message.reply_text("❌ Second time invalid! Hours: 0-23, Minutes: 0-59")
+            await update.message.reply_text("❌ Post 2 time invalid! Hours: 0-23, Minutes: 0-59")
             return
+        if not (1 <= max1 <= 10):
+            await update.message.reply_text("❌ Post 1 max tools 1-10 ke beech hona chahiye!")
+            return
+        if not (1 <= max2 <= 10):
+            await update.message.reply_text("❌ Post 2 max tools 1-10 ke beech hona chahiye!")
+            return
+
+        # Settings module dynamically update karo
+        settings.FIRST_POST_TIME_HOUR = hour1
+        settings.FIRST_POST_TIME_MINUTE = minute1
+        settings.SECOND_POST_TIME_HOUR = hour2
+        settings.SECOND_POST_TIME_MINUTE = minute2
+        settings.FIRST_MAX_TOOLS = max1
+        settings.SECOND_MAX_TOOLS = max2
 
         # Timezone
         tz = pytz.timezone("Asia/Kolkata")
 
-        # Remove existing morning and evening jobs safely
+        # Purane jobs remove karo
         for job_name in ["morning_job", "evening_job"]:
             jobs = context.job_queue.get_jobs_by_name(job_name)
             for job in jobs:
                 job.schedule_removal()
             logging.info(f"Removed existing {job_name}")
 
-        # Add new morning job
+        # Naye jobs schedule karo
         context.job_queue.run_daily(
             morning_job,
             time=datetime.time(hour=hour1, minute=minute1, tzinfo=tz),
             name="morning_job"
         )
-        logging.info(f"New morning_job scheduled at {hour1:02d}:{minute1:02d} IST")
+        logging.info(f"New morning_job at {hour1:02d}:{minute1:02d} IST, max: {max1}")
 
-        # Add new evening job
         context.job_queue.run_daily(
             evening_job,
             time=datetime.time(hour=hour2, minute=minute2, tzinfo=tz),
             name="evening_job"
         )
-        logging.info(f"New evening_job scheduled at {hour2:02d}:{minute2:02d} IST")
+        logging.info(f"New evening_job at {hour2:02d}:{minute2:02d} IST, max: {max2}")
 
-        # Log the change
-        logging.info(f"Post times updated by owner: {hour1:02d}:{minute1:02d} and {hour2:02d}:{minute2:02d}")
-
-        # Send confirmation
         confirmation_message = f"""
-✅ Times updated instantly!
+✅ Settings updated instantly!
 
-🌅 First Post: {hour1:02d}:{minute1:02d} IST
-🌆 Second Post: {hour2:02d}:{minute2:02d} IST
+🌅 Post 1: {hour1:02d}:{minute1:02d} IST → {max1} tools
+🌆 Post 2: {hour2:02d}:{minute2:02d} IST → {max2} tools
 
 ⚡ No restart needed!
         """
         await update.message.reply_text(confirmation_message.strip())
 
-    except ValueError as e:
+    except ValueError:
         await update.message.reply_text(
-            f"❌ Invalid time: {str(e)}\n"
-            "Use HH:MM format (24-hour)\n"
-            "Example: /settime 09:00 18:00"
+            "❌ Koi value galat hai!\n\n"
+            "✅ Sahi format:\n"
+            "/setpost 09:10 15:10 2 3\n\n"
+            "• Time: HH:MM (24-hour)\n"
+            "• Max tools: sirf number (1-10)"
         )
     except Exception as e:
-        logging.error(f"Error in settime command: {e}", exc_info=True)
+        logging.error(f"Error in setpost command: {e}", exc_info=True)
         await update.message.reply_text(
             f"❌ Error: {str(e)}\n"
-            "Check Railway logs for details."
+            "Railway logs check karo."
         )
+
 
 async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /testnow command - post a test tool immediately"""
@@ -174,41 +187,43 @@ async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await update.message.reply_text("🔄 Posting test now...")
 
-        # Import required functions
         from fetcher import fetch_all_tools
         from poster import post_morning_digest
 
-        # Fetch one tool and post it
         tools = await fetch_all_tools()
         if tools:
             await post_morning_digest(tools[:1])
             await update.message.reply_text("✅ Test post done! Check @Ai_Drop_Daily")
         else:
-            await update.message.reply_text("⚠️ No tools fetched. Check Gemini API key.")
+            await update.message.reply_text("⚠️ No tools fetched. Gemini API key check karo.")
 
     except Exception as e:
         logging.error(f"Error in testnow command: {e}", exc_info=True)
         await update.message.reply_text(
             f"❌ Failed: {str(e)}\n"
-            "Check Railway logs for details."
+            "Railway logs check karo."
         )
 
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /help command - show all commands"""
+    """Handle /help command"""
     if not await check_owner(update):
         return
 
     help_message = """
 🤖 AI Drop Daily Bot - Command Help
 
-/start - Show welcome message
-/status - Show current post times and bot status
-/settime HH:MM HH:MM - Set new post times
-    Example: /settime 09:00 18:00
-/testnow - Post a test AI tool right now
-/help - Show this help message
+/start - Welcome message
+/status - Current schedule aur tool counts dekho
+/setpost HH:MM HH:MM max1 max2
+    → Times aur max tools ek saath set karo
+    → Example: /setpost 09:10 15:10 2 3
+    → Post 1: 09:10 IST, 2 tools
+    → Post 2: 15:10 IST, 3 tools
+/testnow - Abhi ek tool test karo
+/help - Yeh message
 
-🔒 Only bot owner can use these commands
-⚡ Changes apply instantly - no restart needed!
+🔒 Sirf bot owner use kar sakta hai
+⚡ Changes turant apply hote hain!
     """
     await update.message.reply_text(help_message.strip())
