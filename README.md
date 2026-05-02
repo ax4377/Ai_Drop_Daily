@@ -219,5 +219,3 @@ MIT License — free to use, modify, and deploy for your own AI channel.
 ## 🙌 Support
 
 If you find this project useful, **follow [@Ai_Drop_Daily](https://t.me/Ai_Drop_Daily)** on Telegram!
-
-For bugs or questions, open an [Issue](https://github.com/your-username/Ai_Drop_Daily/issues) on GitHub.
