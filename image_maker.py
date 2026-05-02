@@ -1,11 +1,10 @@
 """
 image_maker.py
-Generates a premium 16:9 banner using PIL (Python).
-No external image API needed.
+Generates a premium 16:9 banner using PIL only.
+Apple keynote / Notion style — flat text, no emoji, no 3D.
 """
 import logging
 import os
-import random
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 logging.basicConfig(level=logging.INFO)
@@ -19,18 +18,10 @@ def get_font(size, style="regular"):
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         ],
-        "medium": [
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Medium.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        ],
         "regular": [
             "/usr/share/fonts/truetype/google-fonts/Poppins-Regular.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ],
-        "light": [
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Light.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         ],
     }
     for path in font_map.get(style, font_map["regular"]):
@@ -93,7 +84,6 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
         32, fill=(251, 252, 254, 250))
     img = Image.alpha_composite(img, card_layer)
 
-    # Typography
     fd = ImageDraw.Draw(img)
     cx = W // 2
     card_cy = card_y + card_h // 2
