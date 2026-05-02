@@ -1,167 +1,141 @@
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import logging
 import os
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def create_tool_card(tool_name, short_description, price_type, emoji, score):
+def get_font(font_name, size, weight="Bold"):
+    """Satoshi, Inter ya Poppins load karne ki koshish karega, warna default."""
+    # Paths for common clean sans-serif fonts
+    paths = [
+        f"C:/Windows/Fonts/{font_name}.ttf",
+        f"/System/Library/Fonts/Supplemental/{font_name}.ttf",
+        f"/usr/share/fonts/truetype/{font_name}.ttf",
+        "./fonts/Inter-Bold.ttf" # Local path check
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    
+    # Fallback to standard Arial/Helvetica
+    fallback = "arialbd.ttf" if weight == "Bold" else "arial.ttf"
+    try:
+        return ImageFont.truetype(fallback, size)
+    except:
+        return ImageFont.load_default()
+
+def create_tool_card(tool_name, short_description, emoji="🤖"):
     """
-    Create a 1080x1080 pixel image card for the AI tool.
-    Returns the file path of the generated image.
+    Ultra Minimal Apple/Notion Style Card (16:9)
     """
     try:
-        # Create a dark background image
-        width, height = 1080, 1080
-        image = Image.new('RGB', (width, height), color='#0D1117')
+        # 1. Canvas Setup (16:9 - 1920x1080)
+        width, height = 1920, 1080
+        # Background: Very light grey/white
+        base_color = (248, 249, 250) 
+        image = Image.new('RGBA', (width, height), base_color)
         draw = ImageDraw.Draw(image)
+
+        # 2. Add Subtle Grid Pattern (5% Opacity)
+        grid_spacing = 60
+        grid_color = (0, 0, 0, 12) # Very faint black
+        for x in range(0, width, grid_spacing):
+            draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+        for y in range(0, height, grid_spacing):
+            draw.line([(0, y), (width, y)], fill=grid_color, width=1)
+
+        # 3. Add Light Grain Texture
+        grain_overlay = Image.new('RGBA', (width, height), (0,0,0,0))
+        grain_draw = ImageDraw.Draw(grain_overlay)
+        for _ in range(20000): # Random noise
+            x, y = random.randint(0, width-1), random.randint(0, height-1)
+            grain_draw.point((x, y), fill=(0, 0, 0, 15))
+        image = Image.alpha_composite(image, grain_overlay)
+
+        # 4. Draw Glassmorphism Card
+        card_w, card_h = 1000, 450
+        card_x = (width - card_w) // 2
+        card_y = (height - card_h) // 2
+        radius = 24
+
+        # Layered Soft Shadows
+        shadow_layers = [
+            (20, 40, 20), # (offset, blur, opacity)
+            (5, 15, 12)
+        ]
+        for offset, blur, opacity in shadow_layers:
+            shadow = Image.new('RGBA', (width, height), (0,0,0,0))
+            s_draw = ImageDraw.Draw(shadow)
+            s_draw.rounded_rectangle(
+                [card_x, card_y + offset, card_x + card_w, card_y + card_h + offset], 
+                radius=radius, fill=(0, 0, 0, opacity)
+            )
+            shadow = shadow.filter(ImageFilter.GaussianBlur(blur))
+            image = Image.alpha_composite(image, shadow)
+
+        # Main Card Body (White with Transparency)
+        card_body = Image.new('RGBA', (width, height), (0,0,0,0))
+        c_draw = ImageDraw.Draw(card_body)
+        c_draw.rounded_rectangle(
+            [card_x, card_y, card_x + card_w, card_y + card_h], 
+            radius=radius, fill=(255, 255, 255, 220) # Glass effect
+        )
         
-        # Add gradient-like effect using multiple rectangles
-        for i in range(0, height, 20):
-            # Calculate a slightly different dark color for each stripe
-            intensity = 13 + (i // 20) % 3  # Vary between 13, 14, 15
-            color = f'#{intensity:02x}1117'
-            draw.rectangle([(0, i), (width, i+20)], fill=color)
+        # Subtle 1px Border
+        c_draw.rounded_rectangle(
+            [card_x, card_y, card_x + card_w, card_y + card_h], 
+            radius=radius, outline=(0, 0, 0, 15), width=1
+        )
+        image = Image.alpha_composite(image, card_body)
+
+        # 5. Content Rendering
+        final_draw = ImageDraw.Draw(image)
         
-        # Add a colored top border strip (8px height) in cyan #00D4FF
-        draw.rectangle([(0, 0), (width, 8)], fill='#00D4FF')
+        # Fonts
+        font_title = get_font("Inter-Bold", 100, "Bold")
+        font_desc = get_font("Inter-Medium", 42, "Medium")
+
+        # Title (Emoji + Tool Name)
+        title_text = f"{emoji} {tool_name}"
+        title_y = card_y + 140
         
-        # Try to load a font, fallback to default if not available
-        try:
-            # Try to use a common font, adjust paths as needed for different systems
-            font_bold = ImageFont.truetype("arialbd.ttf", 60)  # Bold for title
-            font_medium = ImageFont.truetype("arial.ttf", 36)   # Medium for description
-            font_small = ImageFont.truetype("arial.ttf", 24)    # Small for watermark and badge
-        except IOError:
-            # Fallback to default font
-            logger.warning("Custom font not found, using default font")
-            font_bold = ImageFont.load_default()
-            font_medium = ImageFont.load_default()
-            font_small = ImageFont.load_default()
+        # Subtle Title Glow/Drop Shadow
+        final_draw.text((width//2 + 2, title_y + 2), title_text, fill=(0,0,0,20), font=font_title, anchor="mm")
+        # Main Title
+        final_draw.text((width//2, title_y), title_text, fill=(17, 17, 17), font=font_title, anchor="mm")
+
+        # Description
+        desc_y = title_y + 110
+        final_draw.text((width//2, desc_y), short_description, fill=(85, 85, 85), font=font_desc, anchor="mm")
+
+        # 6. Lighting Effect (Top-left Reflection)
+        highlight = Image.new('RGBA', (width, height), (0,0,0,0))
+        h_draw = ImageDraw.Draw(highlight)
+        h_draw.rounded_rectangle(
+            [card_x, card_y, card_x + card_w, card_y + 5], 
+            radius=radius, fill=(255, 255, 255, 100)
+        )
+        image = Image.alpha_composite(image, highlight)
+
+        # Final Save
+        image = image.convert('RGB') # Remove Alpha for saving
+        output_path = "minimal_ai_card.png"
+        image.save(output_path, "PNG", quality=100, optimize=True)
         
-        # Write "AI Drop Daily" as watermark at bottom center
-        watermark_text = "AI Drop Daily"
-        # Get text size for centering
-        if hasattr(draw, 'textsize'):
-            watermark_width, watermark_height = draw.textsize(watermark_text, font=font_small)
-        else:
-            # For newer versions of Pillow
-            watermark_width, watermark_height = draw.textbbox((0, 0), watermark_text, font=font_small)[2:]
-        watermark_x = (width - watermark_width) // 2
-        watermark_y = height - watermark_height - 20  # 20px from bottom
-        draw.text((watermark_x, watermark_y), watermark_text, fill='#666666', font=font_small)
-        
-        # Write emoji and tool name at center top area
-        # We'll place the emoji and tool name in the upper third of the image
-        title_y = 80  # Start below the top border
-        
-        # Draw emoji
-        emoji_size = 80
-        emoji_x = (width - emoji_size) // 2
-        draw.text((emoji_x, title_y), emoji, fill='#FFFFFF', font=font_bold)
-        
-        # Draw tool name below emoji
-        tool_name_y = title_y + emoji_size + 10
-        if hasattr(draw, 'textsize'):
-            tool_name_width, tool_name_height = draw.textsize(tool_name, font=font_bold)
-        else:
-            tool_name_width, tool_name_height = draw.textbbox((0, 0), tool_name, font=font_bold)[2:]
-        tool_name_x = (width - tool_name_width) // 2
-        draw.text((tool_name_x, tool_name_y), tool_name, fill='#FFFFFF', font=font_bold)
-        
-        # Write short description below tool name, wrapped if needed
-        desc_y = tool_name_y + tool_name_height + 20
-        max_chars_per_line = 30
-        # Simple word wrap
-        words = short_description.split()
-        lines = []
-        current_line = []
-        current_length = 0
-        for word in words:
-            if current_length + len(word) + len(current_line) <= max_chars_per_line:
-                current_line.append(word)
-                current_length += len(word)
-            else:
-                lines.append(' '.join(current_line))
-                current_line = [word]
-                current_length = len(word)
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        # Limit to 2 lines for the description
-        lines = lines[:2]
-        for i, line in enumerate(lines):
-            line_y = desc_y + i * 40  # 40px between lines
-            if hasattr(draw, 'textsize'):
-                line_width, line_height = draw.textsize(line, font=font_medium)
-            else:
-                line_width, line_height = draw.textbbox((0, 0), line, font=font_medium)[2:]
-            line_x = (width - line_width) // 2
-            draw.text((line_x, line_y), line, fill='#CCCCCC', font=font_medium)
-        
-        # Add price badge
-        badge_y = desc_y + 100  # Start badge below description
-        badge_padding = 10
-        badge_radius = 15
-        
-        # Determine badge color based on price_type
-        if price_type == "Free":
-            badge_color = '#00FF88'  # Green
-        elif price_type == "Freemium":
-            badge_color = '#FFD700'  # Yellow
-        else:  # Paid
-            badge_color = '#FF4444'  # Red
-        
-        # Draw badge background (rounded rectangle)
-        badge_text = f"  {price_type}  "
-        if hasattr(draw, 'textsize'):
-            badge_text_width, badge_text_height = draw.textsize(badge_text, font=font_small)
-        else:
-            badge_text_width, badge_text_height = draw.textbbox((0, 0), badge_text, font=font_small)[2:]
-        
-        badge_width = badge_text_width + 2 * badge_padding
-        badge_height = badge_text_height + 2 * badge_padding
-        badge_x = width - badge_width - 20  # 20px from right edge
-        
-        # Draw rounded rectangle (approximated by a rectangle for simplicity, Pillow doesn't have direct rounded rectangle in basic)
-        # We'll draw a regular rectangle and then draw circles at the corners to simulate rounded corners
-        # For simplicity, we'll just draw a rectangle and note that it's acceptable for the task
-        draw.rectangle([(badge_x, badge_y), (badge_x + badge_width, badge_y + badge_height)], fill=badge_color)
-        
-        # Draw badge text
-        text_x = badge_x + badge_padding
-        text_y = badge_y + badge_padding
-        draw.text((text_x, text_y), price_type, fill='#000000', font=font_small)  # Black text on badge
-        
-        # Add score display at bottom left
-        score_text = f"Score: {score}/10"
-        if hasattr(draw, 'textsize'):
-            score_width, score_height = draw.textsize(score_text, font=font_medium)
-        else:
-            score_width, score_height = draw.textbbox((0, 0), score_text, font=font_medium)[2:]
-        score_x = 20
-        score_y = height - score_height - 20  # 20px from bottom
-        draw.text((score_x, score_y), score_text, fill='#00D4FF', font=font_medium)  # Cyan color
-        
-        # Save the image to a temporary file
-        temp_file_path = "temp_card.png"
-        image.save(temp_file_path)
-        logger.info(f"Image card created and saved to {temp_file_path}")
-        return temp_file_path
-        
+        logger.info(f"Premium card created: {output_path}")
+        return output_path
+
     except Exception as e:
-        logger.error(f"Error creating image card: {e}")
-        # Return a default image path or raise? We'll return a placeholder and let the caller handle it.
-        # For simplicity, we'll create a very basic image and return its path.
-        try:
-            # Create a simple black image with text as fallback
-            image = Image.new('RGB', (1080, 1080), color='#0D1117')
-            draw = ImageDraw.Draw(image)
-            draw.text((100, 500), "AI Drop Daily", fill='#FFFFFF', font=font_bold)
-            temp_file_path = "temp_card.png"
-            image.save(temp_file_path)
-            return temp_file_path
-        except Exception as e2:
-            logger.error(f"Failed to create fallback image: {e2}")
-            return ""  # Return empty string to indicate failure
+        logger.error(f"Failed to create image: {e}")
+        return ""
+
+# Example Usage
+if __name__ == "__main__":
+    create_tool_card(
+        tool_name="GPT-5",
+        short_description="Powerful AI for writing, coding & creativity",
+        emoji="🤖"
+    )
