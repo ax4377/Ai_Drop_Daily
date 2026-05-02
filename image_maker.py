@@ -184,7 +184,7 @@ The overall feel: high-end SaaS product card, sharp, clean, premium."""
                 number_of_images=1,
                 aspect_ratio="16:9",
                 output_mime_type="image/png",
-                add_watermark=False,
+
             )
         )
 
