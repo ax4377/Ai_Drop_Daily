@@ -6,7 +6,7 @@ Background:
 
 Main Card:
 - Centered glassmorphism card
-- Rounded corners (20–24px)
+- Rounded corners (20-24px)
 - Soft layered shadow:
   0 20px 40px rgba(0,0,0,0.08),
   0 5px 15px rgba(0,0,0,0.05)
