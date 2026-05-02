@@ -1,6 +1,6 @@
 """
 image_maker.py
-Generates a premium 16:9 banner using GEMINI_IMAGE_API_KEY (separate from analysis key).
+Generates a premium 16:9 banner using Imagen 3 via GEMINI_IMAGE_API_KEY.
 Falls back to PIL if API call fails.
 """
 import logging
@@ -48,7 +48,7 @@ def draw_rounded_rect(draw, xy, r, fill=None, outline=None, width=1):
 
 
 def _pil_fallback(tool_name, short_description, emoji):
-    """Simple PIL banner used only when Gemini API fails."""
+    """PIL banner — used only when Imagen API fails."""
     W, H = 1920, 1080
     img = Image.new("RGBA", (W, H), (247, 248, 250, 255))
     draw = ImageDraw.Draw(img)
@@ -147,13 +147,13 @@ def _pil_fallback(tool_name, short_description, emoji):
 
 
 # ─────────────────────────────────────────────
-# Main — Gemini image generation
+# Main — Imagen 3 image generation
 # ─────────────────────────────────────────────
 
 def create_tool_card(tool_name, short_description, price_type, emoji, score):
     """
-    Generate premium 16:9 banner via Gemini image generation.
-    Uses GEMINI_IMAGE_API_KEY (separate from tool analysis key).
+    Generate premium 16:9 banner via Imagen 3 (imagen-3.0-generate-002).
+    Uses GEMINI_IMAGE_API_KEY — separate from tool analysis key.
     Falls back to PIL on any failure.
     """
     try:
@@ -161,69 +161,45 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
         from google.genai import types
         from config import GEMINI_IMAGE_API_KEY
 
-        # Use dedicated image API key
         client = genai.Client(api_key=GEMINI_IMAGE_API_KEY)
 
-        image_prompt = f"""Create a premium minimal 16:9 banner with a soft modern UI design.
+        image_prompt = f"""A premium minimal 16:9 UI banner design. 
 
-Background:
-- Very subtle grid pattern (5% opacity) on a near-white (#F7F8FA) surface
-- Smooth soft blur glow shape in top-left corner (light blue-purple, very faint)
-- Light grain texture (2%) for premium feel
+Background: near-white (#F7F8FA), very subtle dot/grid pattern at 5% opacity, soft blue-purple glow blob in top-left corner, tiny grain texture for premium feel.
 
-Main Card:
-- Centered glassmorphism card, wide proportions for 16:9 layout
-- Rounded corners (24px)
-- Soft layered shadow
-- Subtle border 1px rgba(0,0,0,0.05)
-- Top light reflection gradient strip
+Center: a large glassmorphism card with rounded corners (24px), white semi-transparent fill, soft multi-layer drop shadow, 1px light border, and a thin top highlight strip simulating glass reflection.
 
-Content — ONLY TWO ELEMENTS, perfectly centered inside card:
-1. Title (BIG, BOLD):
-   {emoji} {tool_name}
-2. Description (below title, clean spacing, soft color #555555):
-   {short_description}
+Inside the card — ONLY these two text elements, perfectly centered:
+1. Large bold title: "{emoji} {tool_name}" — dark color #111111, with a very subtle purple glow behind the text
+2. Below the title with clean spacing, a description in medium weight smaller font, color #555555: "{short_description}"
 
-Typography:
-- Font: Inter / Poppins / Satoshi — clean modern sans-serif
-- Title: Very bold, large, color #111111
-- Description: Medium weight, smaller, color #555555
-- Perfect centering inside the card
+Style: ultra minimal, Apple / Notion aesthetic, generous negative space, no icons, no badges, no extra decorations, no watermark, no price, no rating.
 
-Design Style:
-- Ultra minimal, Apple / Notion aesthetic
-- Clean negative space
-- NO price badge, NO score, NO links, NO extra labels, NO watermark
+The overall feel: high-end SaaS product card, sharp, clean, premium."""
 
-Extra:
-- Very subtle purple-blue glow behind the title text
-- Smooth lighting from top-left
-- High resolution, sharp, premium finish
-
-Aspect Ratio: exactly 16:9"""
-
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
-            contents=image_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
+        response = client.models.generate_images(
+            model="imagen-3.0-generate-002",
+            prompt=image_prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="16:9",
+                output_mime_type="image/png",
+                add_watermark=False,
             )
         )
 
-        # Extract image from response
-        for part in response.candidates[0].content.parts:
-            if part.inline_data is not None:
-                img = Image.open(io.BytesIO(part.inline_data.data)).convert("RGB")
-                if img.size != (1920, 1080):
-                    img = img.resize((1920, 1080), Image.LANCZOS)
-                out = "temp_card.png"
-                img.save(out, "PNG", quality=100)
-                logger.info(f"Gemini image generated: {out}")
-                return out
+        # Extract image
+        if response.generated_images and response.generated_images[0].image:
+            img_bytes = response.generated_images[0].image.image_bytes
+            img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+            out = "temp_card.png"
+            img.save(out, "PNG", quality=100)
+            logger.info(f"Imagen 3 banner generated successfully: {out}")
+            return out
 
-        logger.warning("No image in Gemini response — using PIL fallback")
+        logger.warning("No image returned by Imagen 3 — using PIL fallback")
         return _pil_fallback(tool_name, short_description, emoji)
 
     except Exception as e:
-        logger.error(f"Gemini image generation failed: {e} — using PIL fallback")
+        logger.error(f"Imagen 3 generation failed: {e} — using PIL fallback")
         return _pil_fallback(tool_name, short_description, emoji)
