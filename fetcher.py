@@ -32,7 +32,26 @@ def _call_openrouter(prompt: str, max_tokens: int = 2000) -> str:
     }
     response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=60)
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
+
+    data = response.json()
+
+    # Debug: full response log karo agar kuch missing ho
+    choices = data.get("choices")
+    if not choices:
+        logger.error(f"OpenRouter response missing 'choices': {data}")
+        raise ValueError(f"No choices in response: {data}")
+
+    message = choices[0].get("message")
+    if not message:
+        logger.error(f"OpenRouter response missing 'message': {choices[0]}")
+        raise ValueError(f"No message in choice: {choices[0]}")
+
+    content = message.get("content")
+    if content is None:
+        logger.error(f"OpenRouter response content is None. Full response: {data}")
+        raise ValueError(f"Content is None. Finish reason: {choices[0].get('finish_reason')}")
+
+    return content.strip()
 
 
 def validate_tools_list(tools):
