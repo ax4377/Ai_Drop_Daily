@@ -98,7 +98,7 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
     card_cy = card_y + card_h // 2
 
     # Title
-    title_y = card_cy - 150
+    title_y = card_cy - 110
     fd.text((cx - title_w // 2, title_y), tool_name, fill=(26, 26, 26), font=title_font)
 
     # Description — word wrap inside card width
