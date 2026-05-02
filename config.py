@@ -15,8 +15,11 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHANNEL_ID = CHANNEL_ID
 
-# Gemini settings
+# Gemini API key — tool analysis (gemini_helper.py)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+# Gemini Image API key — image generation (image_maker.py)
+GEMINI_IMAGE_API_KEY = os.environ.get("GEMINI_IMAGE_API_KEY")
 
 # Timezone
 TIMEZONE = TIMEZONE
@@ -29,9 +32,12 @@ EVENING_POST_TIME_MINUTE = SECOND_POST_TIME_MINUTE
 MORNING_MAX_TOOLS = FIRST_MAX_TOOLS
 EVENING_MAX_TOOLS = SECOND_MAX_TOOLS
 
-# Validate that required keys exist
+# Validate required keys
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable not set!")
+
+if not GEMINI_IMAGE_API_KEY:
+    raise ValueError("GEMINI_IMAGE_API_KEY environment variable not set!")
