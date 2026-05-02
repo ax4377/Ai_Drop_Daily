@@ -10,25 +10,21 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Font paths — bundled fonts folder (Railway compatible)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_BOLD    = os.path.join(BASE_DIR, "fonts", "Poppins-Bold.ttf")
 FONT_REGULAR = os.path.join(BASE_DIR, "fonts", "Poppins-Regular.ttf")
 
-# System font fallbacks (always available on Linux/Railway)
 SYSTEM_BOLD    = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 SYSTEM_REGULAR = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 
 
 def get_font(size, style="regular"):
-    # 1. Try bundled Poppins first
     path = FONT_BOLD if style == "bold" else FONT_REGULAR
     if os.path.exists(path):
         try:
             return ImageFont.truetype(path, size)
         except Exception:
             pass
-    # 2. System font fallback (proper TTF — correct bbox calculations)
     sys_path = SYSTEM_BOLD if style == "bold" else SYSTEM_REGULAR
     if os.path.exists(sys_path):
         try:
@@ -45,14 +41,11 @@ def draw_rounded_rect(draw, xy, r, fill=None, outline=None, width=1):
         draw.rectangle(xy, fill=fill, outline=outline, width=width)
 
 
-def create_tool_card(tool_name, short_description, price_type, emoji, score):
-    """
-    Generate premium 16:9 banner using PIL + bundled Poppins fonts.
-    Apple keynote / Notion style — flat text, no emoji, no 3D.
-    """
+def create_tool_card(tool_name, short_description, price_type, emoji, score,
+                     watermark="@Ai_Drop_Daily"):
     W, H = 1920, 1080
 
-    # Background: light cool gray
+    # ── Background ──────────────────────────────────────────────
     img = Image.new("RGBA", (W, H), (235, 237, 242, 255))
 
     # Subtle grid
@@ -70,11 +63,12 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
     br_glow = br_glow.filter(ImageFilter.GaussianBlur(130))
     img = Image.alpha_composite(img, br_glow)
 
-    # Card shadow layers
-    card_w, card_h = 1140, 600
+    # ── Card ────────────────────────────────────────────────────
+    card_w, card_h = 1140, 580
     card_x = (W - card_w) // 2
-    card_y = (H - card_h) // 2 - 10
+    card_y = (H - card_h) // 2 - 20   # slightly above center (visual balance)
 
+    # Shadow layers
     for s_off, s_blur, s_alpha in [(50, 80, 16), (20, 35, 10), (8, 16, 7)]:
         sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_rounded_rect(ImageDraw.Draw(sh),
@@ -91,20 +85,12 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
 
     fd = ImageDraw.Draw(img)
     cx = W // 2
-    card_cy = card_y + card_h // 2
 
-    # Title — big, bold, flat
-    title_font = get_font(112, "bold")
-    title_bbox = fd.textbbox((0, 0), tool_name, font=title_font)
-    tw      = title_bbox[2] - title_bbox[0]
-    title_h = title_bbox[3] - title_bbox[1]
+    # ── Fonts ───────────────────────────────────────────────────
+    title_font = get_font(108, "bold")
+    desc_font  = get_font(46,  "regular")
 
-    # Description font & line wrapping (do this BEFORE placing title
-    # so we know total block height and can centre everything)
-    desc_font  = get_font(46, "regular")
-    desc_color = (105, 107, 115)
-    line_gap   = 72  # px between description lines
-
+    # ── Description line-wrapping ───────────────────────────────
     max_w = card_w - 200
     words = short_description.split()
     lines, line = [], []
@@ -121,29 +107,49 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
         lines.append(" ".join(line))
     lines = lines[:2]
 
-    desc_h = len(lines) * line_gap  # total height of desc block
+    # ── Measure real heights ────────────────────────────────────
+    t_bbox  = fd.textbbox((0, 0), tool_name, font=title_font)
+    title_w = t_bbox[2] - t_bbox[0]
+    title_h = t_bbox[3] - t_bbox[1]
 
-    # --- Vertical spacing ---
-    # Gap between title-bottom and description-top
-    GAP = 60   # <-- tweak this value to control title↔desc spacing
+    line_gap  = 68                        # px between desc lines
+    desc_h    = title_h + (len(lines) - 1) * line_gap if lines else 0
+    # single desc line height
+    if lines:
+        d_bbox   = fd.textbbox((0, 0), lines[0], font=desc_font)
+        one_line = d_bbox[3] - d_bbox[1]
+        desc_h   = one_line + max(0, len(lines) - 1) * line_gap
 
-    # Total content height
+    GAP = 120   # space between title bottom and first desc line
+
+    # Total block height
     total_h = title_h + GAP + desc_h
 
-    # Start y so the whole block is vertically centred in the card
-    block_start_y = card_cy - total_h // 2
+    # Centre the whole block inside card
+    card_cy     = card_y + card_h // 2
+    block_top   = card_cy - total_h // 2
 
-    title_y = block_start_y
+    title_y = block_top
     desc_y  = title_y + title_h + GAP
 
-    # Draw title
-    fd.text((cx - tw // 2, title_y), tool_name, fill=(26, 26, 26), font=title_font)
+    # ── Draw title ──────────────────────────────────────────────
+    fd.text((cx - title_w // 2, title_y), tool_name,
+            fill=(26, 26, 26), font=title_font)
 
-    # Draw description lines
+    # ── Draw description ────────────────────────────────────────
     for i, ln in enumerate(lines):
         lw = fd.textbbox((0, 0), ln, font=desc_font)[2]
-        fd.text((cx - lw // 2, desc_y + i * line_gap), ln, fill=desc_color, font=desc_font)
+        fd.text((cx - lw // 2, desc_y + i * line_gap), ln,
+                fill=(105, 107, 115), font=desc_font)
 
+    # ── Watermark ───────────────────────────────────────────────
+    wm_font = get_font(36, "regular")
+    wm_bbox = fd.textbbox((0, 0), watermark, font=wm_font)
+    wm_w    = wm_bbox[2] - wm_bbox[0]
+    fd.text((cx - wm_w // 2, H - 80), watermark,
+            fill=(160, 162, 170), font=wm_font)
+
+    # ── Save ────────────────────────────────────────────────────
     img = img.convert("RGB")
     out = "temp_card.png"
     img.save(out, "PNG", quality=100)
