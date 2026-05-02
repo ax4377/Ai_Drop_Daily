@@ -26,6 +26,10 @@ async def main():
         # Step 2: Build Telegram Application
         application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
         
+        # Conflict fix: purane webhook aur pending updates clear karo
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Webhook cleared, pending updates dropped.")
+        
         # Step 3: Add all command handlers
         application.add_handler(CommandHandler("start", cmd_start))
         application.add_handler(CommandHandler("status", cmd_status))

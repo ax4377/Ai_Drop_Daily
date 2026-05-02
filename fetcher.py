@@ -22,7 +22,7 @@ HEADERS = {
 MODEL = OPENROUTER_MODEL
 
 
-def _call_openrouter(prompt: str, max_tokens: int = 20000) -> str:
+def _call_openrouter(prompt: str, max_tokens: int = 4000) -> str:
     """Send a prompt to OpenRouter and return response text."""
     payload = {
         "model": MODEL,
@@ -34,24 +34,31 @@ def _call_openrouter(prompt: str, max_tokens: int = 20000) -> str:
     response.raise_for_status()
 
     data = response.json()
-
-    # Debug: full response log karo agar kuch missing ho
     choices = data.get("choices")
     if not choices:
-        logger.error(f"OpenRouter response missing 'choices': {data}")
-        raise ValueError(f"No choices in response: {data}")
+        logger.error(f"OpenRouter response missing choices: {data}")
+        raise ValueError(f"No choices in response")
 
-    message = choices[0].get("message")
-    if not message:
-        logger.error(f"OpenRouter response missing 'message': {choices[0]}")
-        raise ValueError(f"No message in choice: {choices[0]}")
+    message = choices[0].get("message", {})
+    finish_reason = choices[0].get("finish_reason", "unknown")
 
-    content = message.get("content")
-    if content is None:
-        logger.error(f"OpenRouter response content is None. Full response: {data}")
-        raise ValueError(f"Content is None. Finish reason: {choices[0].get('finish_reason')}")
+    # Normal content check
+    text = message.get("content")
 
-    return content.strip()
+    # Reasoning model fallback — content None hota hai, reasoning mein hota hai
+    if text is None:
+        reasoning = message.get("reasoning")
+        if reasoning:
+            logger.warning(f"Content is None, extracting from reasoning field (finish_reason: {finish_reason})")
+            text = reasoning
+        else:
+            logger.error(f"Both content and reasoning are None. finish_reason={finish_reason}. Full: {data}")
+            raise ValueError(f"No content or reasoning in response. finish_reason={finish_reason}")
+
+    if not text or not text.strip():
+        raise ValueError(f"Empty response from OpenRouter. finish_reason={finish_reason}")
+
+    return text.strip()
 
 
 def validate_tools_list(tools):
@@ -80,28 +87,16 @@ async def fetch_all_tools():
     try:
         logger.info(f"Fetching AI tools via OpenRouter ({MODEL})...")
 
-        prompt = """You are an AI tools researcher with up-to-date knowledge of 2026. Focus ONLY on recently launched or trending AI tools (released or significantly updated within the last 6–12 months).
-
-Give me a list of 10 AI tools.
-
-Return ONLY a valid JSON array — no markdown, no code blocks, no explanations.
-
+        prompt = """You are an AI tools researcher with up-to-date knowledge of 2025-2026.
+Give me a list of 15 recently launched or currently trending AI tools.
+Return ONLY a valid JSON array — no markdown, no code blocks, no extra text.
 Each object must have exactly these keys:
-
-* name (string)
-* link (string, real working URL)
-* summary (string, 2–3 concise lines explaining what it does, key feature, and use case)
-* price_type (string, one of: Free, Freemium, Paid)
-* category (string, choose from: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Automation, Design, Agents)
-
-Strict rules:
-
-* No duplicate tools
-* No outdated tools unless they had a major 2026 update
-* Prefer new, trending, or fast-growing tools
-* Ensure links are valid and direct (homepage or product page)
-* Keep summaries clear, practical, and non-generic
-"""
+  name        (string)
+  link        (string, real working URL)
+  summary     (string, 2-3 lines)
+  price_type  (string, one of: Free, Freemium, Paid)
+  category    (string, e.g. Image Generation, Writing, Coding, Video, Audio, Productivity, Research)
+Return exactly 15 tools."""
 
         text = _call_openrouter(prompt)
         time.sleep(1)
