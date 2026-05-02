@@ -1,7 +1,7 @@
 """
 image_maker.py
 Generates a premium 16:9 banner using PIL only.
-Apple keynote / Notion style — flat text, no emoji, no 3D.
+Fonts are bundled in ./fonts/ folder — works on Railway too.
 """
 import logging
 import os
@@ -10,26 +10,19 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Font paths — bundled fonts folder (Railway compatible)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_BOLD    = os.path.join(BASE_DIR, "fonts", "Poppins-Bold.ttf")
+FONT_REGULAR = os.path.join(BASE_DIR, "fonts", "Poppins-Regular.ttf")
+
 
 def get_font(size, style="regular"):
-    font_map = {
-        "bold": [
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ],
-        "regular": [
-            "/usr/share/fonts/truetype/google-fonts/Poppins-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ],
-    }
-    for path in font_map.get(style, font_map["regular"]):
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                continue
+    path = FONT_BOLD if style == "bold" else FONT_REGULAR
+    if os.path.exists(path):
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            pass
     return ImageFont.load_default()
 
 
@@ -42,7 +35,7 @@ def draw_rounded_rect(draw, xy, r, fill=None, outline=None, width=1):
 
 def create_tool_card(tool_name, short_description, price_type, emoji, score):
     """
-    Generate premium 16:9 banner using PIL only.
+    Generate premium 16:9 banner using PIL + bundled Poppins fonts.
     Apple keynote / Notion style — flat text, no emoji, no 3D.
     """
     W, H = 1920, 1080
@@ -88,7 +81,7 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
     cx = W // 2
     card_cy = card_y + card_h // 2
 
-    # Title — big, bold, flat, no shadow, no emoji
+    # Title — big, bold, flat
     title_font = get_font(112, "bold")
     try:
         tw = fd.textbbox((0, 0), tool_name, font=title_font)[2]
