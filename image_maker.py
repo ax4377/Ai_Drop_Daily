@@ -10,7 +10,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Font paths — bundled fonts folder (Railway compatible)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_BOLD    = os.path.join(BASE_DIR, "fonts", "Poppins-Bold.ttf")
 FONT_REGULAR = os.path.join(BASE_DIR, "fonts", "Poppins-Regular.ttf")
@@ -34,13 +33,9 @@ def draw_rounded_rect(draw, xy, r, fill=None, outline=None, width=1):
 
 
 def create_tool_card(tool_name, short_description, price_type, emoji, score):
-    """
-    Generate premium 16:9 banner using PIL + bundled Poppins fonts.
-    Apple keynote / Notion style — flat text, no emoji, no 3D.
-    """
     W, H = 1920, 1080
 
-    # Background: light cool gray
+    # ── Background ───────────────────────────────────────────────────
     img = Image.new("RGBA", (W, H), (235, 237, 242, 255))
 
     # Subtle grid
@@ -58,11 +53,31 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
     br_glow = br_glow.filter(ImageFilter.GaussianBlur(130))
     img = Image.alpha_composite(img, br_glow)
 
-    # Card shadow layers
-    card_w, card_h = 1140, 600
+    # ── Measure title first to decide card width ──────────────────────
+    title_font = get_font(112, "bold")
+    desc_font  = get_font(46, "regular")
+
+    dummy = ImageDraw.Draw(img)
+    try:
+        title_w = dummy.textbbox((0, 0), tool_name, font=title_font)[2]
+    except Exception:
+        title_w = 500
+
+    # Base card size
+    base_card_w = 1140
+    base_card_h = 520
+    padding_x   = 160  # padding on each side of title inside card
+
+    # If title wider than card content area → expand card width
+    needed_w = title_w + padding_x * 2
+    card_w   = max(base_card_w, needed_w)
+    card_w   = min(card_w, W - 160)   # never exceed screen - 80px each side
+    card_h   = base_card_h
+
     card_x = (W - card_w) // 2
     card_y = (H - card_h) // 2 - 10
 
+    # ── Card shadows ──────────────────────────────────────────────────
     for s_off, s_blur, s_alpha in [(50, 80, 16), (20, 35, 10), (8, 16, 7)]:
         sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_rounded_rect(ImageDraw.Draw(sh),
@@ -70,34 +85,25 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
             32, fill=(140, 145, 165, s_alpha))
         img = Image.alpha_composite(img, sh.filter(ImageFilter.GaussianBlur(s_blur)))
 
-    # Card body
+    # ── Card body ─────────────────────────────────────────────────────
     card_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw_rounded_rect(ImageDraw.Draw(card_layer),
         [card_x, card_y, card_x+card_w, card_y+card_h],
         32, fill=(251, 252, 254, 250))
     img = Image.alpha_composite(img, card_layer)
 
-    fd = ImageDraw.Draw(img)
-    cx = W // 2
+    # ── Typography ────────────────────────────────────────────────────
+    fd  = ImageDraw.Draw(img)
+    cx  = W // 2
     card_cy = card_y + card_h // 2
 
-    # Title — big, bold, flat
-    title_font = get_font(112, "bold")
-    try:
-        title_bbox = fd.textbbox((0, 0), tool_name, font=title_font)
-        tw = title_bbox[2]
-        title_h = title_bbox[3] - title_bbox[1]
-    except Exception:
-        tw = 700
-        title_h = 120
-    title_y = card_cy - 160   # shifted up to give desc more breathing room
-    fd.text((cx - tw // 2, title_y), tool_name, fill=(26, 26, 26), font=title_font)
+    # Title
+    title_y = card_cy - 110
+    fd.text((cx - title_w // 2, title_y), tool_name, fill=(26, 26, 26), font=title_font)
 
-    # Description — flat, centered, gray
-    desc_font = get_font(46, "regular")
+    # Description — word wrap inside card width
     desc_color = (105, 107, 115)
-
-    max_w = card_w - 200
+    max_w = card_w - padding_x * 2
     words = short_description.split()
     lines, line = [], []
     for word in words:
@@ -116,15 +122,23 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score):
         lines.append(" ".join(line))
     lines = lines[:2]
 
-    # Gap between title bottom and description: title_y + title_h + 48px padding
-    desc_y = title_y + title_h + 48
-    line_gap = 72   # comfortable line height between desc lines
+    desc_y = title_y + 155
     for i, ln in enumerate(lines):
         try:
             lw = fd.textbbox((0, 0), ln, font=desc_font)[2]
         except Exception:
             lw = 400
-        fd.text((cx - lw // 2, desc_y + i * line_gap), ln, fill=desc_color, font=desc_font)
+        fd.text((cx - lw // 2, desc_y + i * 64), ln, fill=desc_color, font=desc_font)
+
+    # ── Watermark — center bottom ─────────────────────────────────────
+    wm_font = get_font(30, "regular")
+    wm_text = "@Ai_Drop_Daily"
+    wm_color = (170, 172, 180)
+    try:
+        wm_w = fd.textbbox((0, 0), wm_text, font=wm_font)[2]
+    except Exception:
+        wm_w = 200
+    fd.text((cx - wm_w // 2, H - 52), wm_text, fill=wm_color, font=wm_font)
 
     img = img.convert("RGB")
     out = "temp_card.png"
