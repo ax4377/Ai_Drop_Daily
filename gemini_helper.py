@@ -1,92 +1,86 @@
-from google import genai
+"""
+gemini_helper.py
+Analyzes AI tools using OpenRouter API (OpenAI-compatible).
+"""
+import requests
 import json
 import logging
 import time
-from config import GEMINI_API_KEY
+from config import OPENROUTER_API_KEY, OPENROUTER_MODEL
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Setup Gemini client
-client = genai.Client(api_key=GEMINI_API_KEY)
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+HEADERS = {
+    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://t.me/Ai_Drop_Daily",
+    "X-Title": "AI Drop Daily Bot",
+}
+MODEL = OPENROUTER_MODEL
+
 
 def analyze_tool(tool_name, tool_summary, tool_link):
-    """
-    Analyze an AI tool using Gemini API and return a dictionary with analysis.
-    """
-    # Default response in case of failure
-    default_response = {
+    """Analyze an AI tool and return structured info dict."""
+    default = {
         "short_description": "AI tool for various tasks",
         "use_case": "Anyone looking for AI solutions",
         "price_type": "Free",
         "score": 5,
         "emoji": "🤖",
-        "category": "Other"
+        "category": "Other",
     }
 
     try:
-        # Prepare the prompt for Gemini
-        prompt = f"""
-        Analyze this AI tool and return a JSON object with the following keys:
-        - short_description: max 2 lines explaining what the tool does in English only
-        - use_case: one line who should use this (in English)
-        - price_type: exactly one of: Free, Paid. If the tool has a free tier use Free, if it requires payment use Paid. Never use Freemium.
-        - score: integer from 1 to 10 based on how useful and innovative the tool is
-        - emoji: one relevant emoji for the tool
-        - category: string like Image Generation, Writing, Coding, Video, Audio, Productivity, Research
+        prompt = f"""Analyze this AI tool and return a JSON object with these keys:
+- short_description: max 2 lines explaining what the tool does (English only)
+- use_case: one line who should use this (English only)
+- price_type: exactly one of: Free, Paid (use Free if it has a free tier)
+- score: integer 1-10 based on usefulness and innovation
+- emoji: one relevant emoji
+- category: one of: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Other
 
-        Tool Name: {tool_name}
-        Tool Summary: {tool_summary}
-        Tool Link: {tool_link}
+Tool Name: {tool_name}
+Tool Summary: {tool_summary}
+Tool Link: {tool_link}
 
-        Respond only in English. Do not use Hindi or Hinglish in any field.
-        Return ONLY the JSON object, no extra text or markdown.
-        """
+Return ONLY the JSON object, no markdown, no extra text."""
 
-        # Generate content with Gemini
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt
-        )
+        payload = {
+            "model": MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 500,
+            "temperature": 0.3,
+        }
 
-        # Wait for 2 seconds to avoid rate limiting
+        response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=30)
+        response.raise_for_status()
+        text = response.json()["choices"][0]["message"]["content"].strip()
+
         time.sleep(2)
 
-        # Parse the JSON response
-        response_text = response.text.strip()
+        start = text.find("{")
+        end   = text.rfind("}") + 1
+        if start == -1 or end == 0:
+            logger.warning(f"No JSON in analyze_tool response: {text[:200]}")
+            return default
 
-        # Find JSON object in the response (in case there's extra text)
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}') + 1
+        result = json.loads(text[start:end])
+        required = ["short_description", "use_case", "price_type", "score", "emoji", "category"]
 
-        if start_idx != -1 and end_idx != 0:
-            json_str = response_text[start_idx:end_idx]
-            result = json.loads(json_str)
+        if not all(k in result for k in required):
+            logger.warning(f"Missing keys in analyze_tool response: {result}")
+            return default
 
-            # Validate the result has all required keys
-            required_keys = ["short_description", "use_case", "price_type", "score", "emoji", "category"]
+        if result["price_type"] not in ["Free", "Paid"]:
+            result["price_type"] = "Free"
+        result["score"] = max(1, min(10, int(result["score"])))
+        if not result.get("category"):
+            result["category"] = "Other"
 
-            if all(key in result for key in required_keys):
-                # Ensure price_type is one of the allowed values
-                if result["price_type"] not in ["Free", "Paid"]:
-                    result["price_type"] = "Free"
-
-                # Ensure score is between 1 and 10
-                result["score"] = max(1, min(10, int(result["score"])))
-
-                # Ensure category is provided, default to "Other" if missing or empty
-                if not result["category"] or not isinstance(result["category"], str):
-                    result["category"] = "Other"
-
-                return result
-            else:
-                logger.warning(f"Gemini response missing required keys: {result}")
-                return default_response
-        else:
-            logger.warning(f"No JSON found in Gemini response: {response_text}")
-            return default_response
+        return result
 
     except Exception as e:
-        logger.error(f"Error in Gemini analysis for {tool_name}: {e}")
-        return default_response
+        logger.error(f"Error in analyze_tool for {tool_name}: {e}")
+        return default

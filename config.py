@@ -7,37 +7,35 @@ from settings import (
     CHANNEL_ID, TIMEZONE, POST_DELAY_SECONDS
 )
 
-# Load .env file for local development
-# On Railway, environment variables are set directly in dashboard
 load_dotenv()
 
-# Telegram settings
+# Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHANNEL_ID = CHANNEL_ID
 
-# Gemini API key — tool analysis (gemini_helper.py)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# OpenRouter — tool fetching + analysis
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# Gemini Image API key — image generation (image_maker.py)
+# OpenRouter model — change anytime from Railway variables
+# Default: google/gemini-2.5-flash
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.5-flash")
+
+# Gemini Image — banner generation
 GEMINI_IMAGE_API_KEY = os.environ.get("GEMINI_IMAGE_API_KEY")
 
-# Timezone
+# Timezone & schedule
 TIMEZONE = TIMEZONE
-
-# Post settings
-MORNING_POST_TIME_HOUR = FIRST_POST_TIME_HOUR
+MORNING_POST_TIME_HOUR   = FIRST_POST_TIME_HOUR
 MORNING_POST_TIME_MINUTE = FIRST_POST_TIME_MINUTE
-EVENING_POST_TIME_HOUR = SECOND_POST_TIME_HOUR
+EVENING_POST_TIME_HOUR   = SECOND_POST_TIME_HOUR
 EVENING_POST_TIME_MINUTE = SECOND_POST_TIME_MINUTE
 MORNING_MAX_TOOLS = FIRST_MAX_TOOLS
 EVENING_MAX_TOOLS = SECOND_MAX_TOOLS
 
-# Validate required keys
+# Validate
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
-
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable not set!")
-
+if not OPENROUTER_API_KEY:
+    raise ValueError("OPENROUTER_API_KEY environment variable not set!")
 if not GEMINI_IMAGE_API_KEY:
     raise ValueError("GEMINI_IMAGE_API_KEY environment variable not set!")
