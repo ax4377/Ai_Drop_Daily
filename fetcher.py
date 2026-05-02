@@ -22,7 +22,7 @@ HEADERS = {
 MODEL = OPENROUTER_MODEL
 
 
-def _call_openrouter(prompt: str, max_tokens: int = 2000) -> str:
+def _call_openrouter(prompt: str, max_tokens: int = 20000) -> str:
     """Send a prompt to OpenRouter and return response text."""
     payload = {
         "model": MODEL,
@@ -80,16 +80,28 @@ async def fetch_all_tools():
     try:
         logger.info(f"Fetching AI tools via OpenRouter ({MODEL})...")
 
-        prompt = """You are an AI tools researcher with up-to-date knowledge of 2025-2026.
-Give me a list of 15 recently launched or currently trending AI tools.
-Return ONLY a valid JSON array — no markdown, no code blocks, no extra text.
+        prompt = """You are an AI tools researcher with up-to-date knowledge of 2026. Focus ONLY on recently launched or trending AI tools (released or significantly updated within the last 6–12 months).
+
+Give me a list of 10 AI tools.
+
+Return ONLY a valid JSON array — no markdown, no code blocks, no explanations.
+
 Each object must have exactly these keys:
-  name        (string)
-  link        (string, real working URL)
-  summary     (string, 2-3 lines)
-  price_type  (string, one of: Free, Freemium, Paid)
-  category    (string, e.g. Image Generation, Writing, Coding, Video, Audio, Productivity, Research)
-Return exactly 15 tools."""
+
+* name (string)
+* link (string, real working URL)
+* summary (string, 2–3 concise lines explaining what it does, key feature, and use case)
+* price_type (string, one of: Free, Freemium, Paid)
+* category (string, choose from: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Automation, Design, Agents)
+
+Strict rules:
+
+* No duplicate tools
+* No outdated tools unless they had a major 2026 update
+* Prefer new, trending, or fast-growing tools
+* Ensure links are valid and direct (homepage or product page)
+* Keep summaries clear, practical, and non-generic
+"""
 
         text = _call_openrouter(prompt)
         time.sleep(1)
