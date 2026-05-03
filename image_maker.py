@@ -1,10 +1,12 @@
 """
 image_maker.py
 Generates a premium 16:9 banner using PIL only.
+Design: Warm beige background + gold gradient title + glassmorphism card.
 Fonts are bundled in ./fonts/ folder — works on Railway too.
 """
 import logging
 import os
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 logging.basicConfig(level=logging.INFO)
@@ -41,56 +43,114 @@ def draw_rounded_rect(draw, xy, r, fill=None, outline=None, width=1):
         draw.rectangle(xy, fill=fill, outline=outline, width=width)
 
 
+def make_gold_gradient_text(img, text, font, cx, y, W):
+    """Render text with a smooth gold gradient."""
+    dummy_draw = ImageDraw.Draw(img)
+    bbox = dummy_draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    tx = cx - tw // 2
+
+    # Create text mask
+    mask = Image.new("L", (tw + 20, th + 20), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.text((-bbox[0] + 10, -bbox[1] + 10), text, fill=255, font=font)
+
+    # Gold gradient array
+    grad_arr = np.zeros((th + 20, tw + 20, 4), dtype=np.uint8)
+    for x in range(tw + 20):
+        t = x / max(tw + 19, 1)
+        if t < 0.4:
+            s = t / 0.4
+            r = int(139 + s * (212 - 139))
+            g = int(90  + s * (160 - 90))
+            b = int(20  + s * (40  - 20))
+        elif t < 0.7:
+            s = (t - 0.4) / 0.3
+            r = int(212 + s * (230 - 212))
+            g = int(160 + s * (185 - 160))
+            b = int(40  + s * (70  - 40))
+        else:
+            s = (t - 0.7) / 0.3
+            r = int(230 - s * (230 - 180))
+            g = int(185 - s * (185 - 130))
+            b = int(70  - s * (70  - 30))
+        grad_arr[:, x] = [r, g, b, 255]
+
+    grad = Image.fromarray(grad_arr, "RGBA")
+    grad.putalpha(mask)
+    img.paste(grad, (tx - 10, y - 10), grad)
+    return tw, th
+
+
 def create_tool_card(tool_name, short_description, price_type, emoji, score,
                      watermark="@Ai_Drop_Daily"):
     W, H = 1920, 1080
 
-    # ── Background ──────────────────────────────────────────────
-    img = Image.new("RGBA", (W, H), (235, 237, 242, 255))
+    # ── Background: warm beige diagonal gradient ─────────────────
+    bg_arr = np.zeros((H, W, 4), dtype=np.uint8)
+    for y in range(H):
+        t_row = y / H
+        for x in range(W):
+            t = x / W * 0.5 + t_row * 0.5
+            r = int(245 - t * 12)
+            g = int(240 - t * 14)
+            b = int(228 - t * 18)
+            bg_arr[y, x] = [r, g, b, 255]
+    img = Image.fromarray(bg_arr, "RGBA")
 
-    # Subtle grid
+    # ── Subtle warm grid ─────────────────────────────────────────
     grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gd = ImageDraw.Draw(grid)
-    for x in range(0, W, 60):
-        gd.line([(x, 0), (x, H)], fill=(170, 175, 195, 30), width=1)
-    for y in range(0, H, 60):
-        gd.line([(0, y), (W, y)], fill=(170, 175, 195, 30), width=1)
+    grid_color = (180, 165, 145, 40)
+    for x in range(0, W, 55):
+        gd.line([(x, 0), (x, H)], fill=grid_color, width=1)
+    for y in range(0, H, 55):
+        gd.line([(0, y), (W, y)], fill=grid_color, width=1)
     img = Image.alpha_composite(img, grid)
 
-    # Bottom-right soft glow
-    br_glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(br_glow).ellipse([W-700, H-550, W+350, H+250], fill=(215, 218, 232, 60))
-    br_glow = br_glow.filter(ImageFilter.GaussianBlur(130))
-    img = Image.alpha_composite(img, br_glow)
+    # ── Soft warm center glow ─────────────────────────────────────
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse([W//2 - 600, H//2 - 200, W//2 + 600, H + 300],
+                                  fill=(235, 210, 160, 35))
+    glow = glow.filter(ImageFilter.GaussianBlur(160))
+    img = Image.alpha_composite(img, glow)
 
-    # ── Card ────────────────────────────────────────────────────
-    card_w, card_h = 1140, 580
+    # ── Card ─────────────────────────────────────────────────────
+    card_w, card_h = 1200, 580
     card_x = (W - card_w) // 2
-    card_y = (H - card_h) // 2 - 20   # slightly above center (visual balance)
+    card_y = (H - card_h) // 2 - 20
 
-    # Shadow layers
-    for s_off, s_blur, s_alpha in [(50, 80, 16), (20, 35, 10), (8, 16, 7)]:
+    # Warm shadow layers
+    for s_off, s_blur, s_alpha in [(60, 100, 18), (25, 45, 12), (10, 20, 8)]:
         sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw_rounded_rect(ImageDraw.Draw(sh),
-            [card_x+10, card_y+s_off, card_x+card_w-10, card_y+card_h+s_off],
-            32, fill=(140, 145, 165, s_alpha))
+            [card_x + 15, card_y + s_off, card_x + card_w - 15, card_y + card_h + s_off],
+            48, fill=(160, 140, 110, s_alpha))
         img = Image.alpha_composite(img, sh.filter(ImageFilter.GaussianBlur(s_blur)))
 
-    # Card body
+    # Card body: warm creamy white
     card_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw_rounded_rect(ImageDraw.Draw(card_layer),
-        [card_x, card_y, card_x+card_w, card_y+card_h],
-        32, fill=(251, 252, 254, 250))
+        [card_x, card_y, card_x + card_w, card_y + card_h],
+        48, fill=(250, 247, 240, 242))
     img = Image.alpha_composite(img, card_layer)
+
+    # Top edge shine
+    shine = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    draw_rounded_rect(ImageDraw.Draw(shine),
+        [card_x + 2, card_y + 2, card_x + card_w - 2, card_y + 60],
+        48, fill=(255, 255, 255, 60))
+    img = Image.alpha_composite(img, shine)
+
+    # ── Fonts ────────────────────────────────────────────────────
+    title_font = get_font(108, "bold")
+    desc_font  = get_font(46,  "regular")
 
     fd = ImageDraw.Draw(img)
     cx = W // 2
 
-    # ── Fonts ───────────────────────────────────────────────────
-    title_font = get_font(108, "bold")
-    desc_font  = get_font(46,  "regular")
-
-    # ── Description line-wrapping ───────────────────────────────
+    # ── Description line-wrapping ─────────────────────────────────
     max_w = card_w - 200
     words = short_description.split()
     lines, line = [], []
@@ -107,49 +167,45 @@ def create_tool_card(tool_name, short_description, price_type, emoji, score,
         lines.append(" ".join(line))
     lines = lines[:2]
 
-    # ── Measure real heights ────────────────────────────────────
+    # ── Measure heights ───────────────────────────────────────────
     t_bbox  = fd.textbbox((0, 0), tool_name, font=title_font)
     title_w = t_bbox[2] - t_bbox[0]
     title_h = t_bbox[3] - t_bbox[1]
 
-    line_gap  = 68                        # px between desc lines
-    desc_h    = title_h + (len(lines) - 1) * line_gap if lines else 0
-    # single desc line height
+    line_gap = 68
     if lines:
         d_bbox   = fd.textbbox((0, 0), lines[0], font=desc_font)
         one_line = d_bbox[3] - d_bbox[1]
         desc_h   = one_line + max(0, len(lines) - 1) * line_gap
+    else:
+        desc_h = 0
 
-    GAP = 120   # space between title bottom and first desc line
-
-    # Total block height
-    total_h = title_h + GAP + desc_h
-
-    # Centre the whole block inside card
-    card_cy     = card_y + card_h // 2
-    block_top   = card_cy - total_h // 2
+    GAP       = 110
+    total_h   = title_h + GAP + desc_h
+    card_cy   = card_y + card_h // 2
+    block_top = card_cy - total_h // 2
 
     title_y = block_top
     desc_y  = title_y + title_h + GAP
 
-    # ── Draw title ──────────────────────────────────────────────
-    fd.text((cx - title_w // 2, title_y), tool_name,
-            fill=(26, 26, 26), font=title_font)
+    # ── Draw title with gold gradient ────────────────────────────
+    make_gold_gradient_text(img, tool_name, title_font, cx, title_y, W)
 
-    # ── Draw description ────────────────────────────────────────
+    # ── Draw description (warm brown-grey) ───────────────────────
+    fd = ImageDraw.Draw(img)
     for i, ln in enumerate(lines):
         lw = fd.textbbox((0, 0), ln, font=desc_font)[2]
         fd.text((cx - lw // 2, desc_y + i * line_gap), ln,
-                fill=(105, 107, 115), font=desc_font)
+                fill=(140, 115, 85, 220), font=desc_font)
 
-    # ── Watermark ───────────────────────────────────────────────
+    # ── Watermark ────────────────────────────────────────────────
     wm_font = get_font(36, "regular")
     wm_bbox = fd.textbbox((0, 0), watermark, font=wm_font)
     wm_w    = wm_bbox[2] - wm_bbox[0]
     fd.text((cx - wm_w // 2, H - 80), watermark,
-            fill=(160, 162, 170), font=wm_font)
+            fill=(180, 155, 120, 180), font=wm_font)
 
-    # ── Save ────────────────────────────────────────────────────
+    # ── Save ─────────────────────────────────────────────────────
     img = img.convert("RGB")
     out = "temp_card.png"
     img.save(out, "PNG", quality=100)
