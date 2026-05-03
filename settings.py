@@ -2,20 +2,12 @@
 settings.py
 All bot settings in one place.
 
-Railway Persistence Fix:
-- Railway pe har redeploy pe fresh container milti hai
-- runtime_settings.json tab bhi wipe ho jaata tha
-- FIX: Settings Railway Environment Variables se load hoti hain (agar set hain)
-  Railway Dashboard -> Variables mein ye set karo:
-    MORNING_HOUR, MORNING_MINUTE, EVENING_HOUR, EVENING_MINUTE
-    MORNING_MAX_TOOLS, EVENING_MAX_TOOLS
-  Agar set nahi hain toh runtime_settings.json fallback hai
-  Agar woh bhi nahi hai toh hardcoded defaults use hote hain
-
-Order of priority:
-  1. Railway Environment Variables  (restart-proof)
-  2. runtime_settings.json          (same-session /setpost changes)
-  3. Hardcoded defaults below
+Railway Persistence Fix (Simple Version):
+- Sirf 2 Railway Variables set karo:
+    MORNING_POST=09:10:5   (HH:MM:MAX_TOOLS)
+    EVENING_POST=18:10:2   (HH:MM:MAX_TOOLS)
+- Agar set nahi hain toh runtime_settings.json fallback
+- Agar woh bhi nahi toh hardcoded defaults
 """
 
 import json
@@ -24,9 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ============================================
-# Hardcoded Defaults
-# ============================================
+# ── Hardcoded Defaults ────────────────────────────────────────────────────────
 _DEFAULT_FIRST_POST_TIME_HOUR    = 9
 _DEFAULT_FIRST_POST_TIME_MINUTE  = 0
 _DEFAULT_SECOND_POST_TIME_HOUR   = 18
@@ -35,37 +25,28 @@ _DEFAULT_FIRST_MAX_TOOLS         = 5
 _DEFAULT_SECOND_MAX_TOOLS        = 2
 
 # Channel Settings
-CHANNEL_ID = "@Ai_Drop_Daily"
-
-# Timezone
-TIMEZONE = "Asia/Kolkata"
-
-# Delay between posts (seconds)
+CHANNEL_ID         = "@Ai_Drop_Daily"
+TIMEZONE           = "Asia/Kolkata"
 POST_DELAY_SECONDS = 30
 
-# ============================================
-# Runtime Settings File (same-session /setpost)
-# ============================================
+# ── Runtime Settings File ─────────────────────────────────────────────────────
 _RUNTIME_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "runtime_settings.json"
 )
 
 
 def _load_runtime() -> dict:
-    """runtime_settings.json se saved values load karo."""
     if os.path.exists(_RUNTIME_FILE):
         try:
             with open(_RUNTIME_FILE, "r") as f:
-                data = json.load(f)
-            logger.info("Loaded runtime_settings.json")
-            return data
+                return json.load(f)
         except Exception as e:
             logger.warning(f"Could not read runtime_settings.json: {e}")
     return {}
 
 
 def save_runtime_settings():
-    """Current in-memory settings ko runtime_settings.json mein save karo."""
+    """Current in-memory settings disk pe save karo."""
     data = {
         "FIRST_POST_TIME_HOUR":    FIRST_POST_TIME_HOUR,
         "FIRST_POST_TIME_MINUTE":  FIRST_POST_TIME_MINUTE,
@@ -82,35 +63,46 @@ def save_runtime_settings():
         logger.error(f"Could not save runtime_settings.json: {e}")
 
 
-# ============================================
-# Load Settings — Priority Order
-# 1. Env Vars (Railway Variables) — restart-proof
-# 2. runtime_settings.json       — same-session /setpost
-# 3. Hardcoded defaults
-# ============================================
-_saved = _load_runtime()
+# ── Parse MORNING_POST / EVENING_POST env vars ────────────────────────────────
+def _parse_post_env(env_key: str):
+    """
+    'HH:MM:MAX' string ko parse karo.
+    Returns (hour, minute, max_tools) or None if invalid/missing.
+    """
+    val = os.environ.get(env_key, "").strip()
+    if not val:
+        return None
+    parts = val.split(":")
+    if len(parts) != 3:
+        logger.warning(f"{env_key}='{val}' invalid — expected HH:MM:MAX format")
+        return None
+    try:
+        h, m, mx = int(parts[0]), int(parts[1]), int(parts[2])
+        if not (0 <= h <= 23 and 0 <= m <= 59 and 1 <= mx <= 10):
+            raise ValueError
+        return h, m, mx
+    except ValueError:
+        logger.warning(f"{env_key}='{val}' has out-of-range values, ignoring.")
+        return None
 
 
-def _get_int(env_key: str, runtime_key: str, default: int) -> int:
-    """Env var > runtime file > default."""
-    env_val = os.environ.get(env_key)
-    if env_val is not None:
-        try:
-            return int(env_val)
-        except ValueError:
-            logger.warning(f"Invalid env var {env_key}='{env_val}', ignoring.")
-    return _saved.get(runtime_key, default)
+# ── Load Settings (Priority: Env > runtime_settings.json > defaults) ──────────
+_saved   = _load_runtime()
+_morning = _parse_post_env("MORNING_POST")
+_evening = _parse_post_env("EVENING_POST")
 
+if _morning:
+    FIRST_POST_TIME_HOUR, FIRST_POST_TIME_MINUTE, FIRST_MAX_TOOLS = _morning
+    logger.info(f"MORNING_POST env loaded: {FIRST_POST_TIME_HOUR:02d}:{FIRST_POST_TIME_MINUTE:02d} x{FIRST_MAX_TOOLS}")
+else:
+    FIRST_POST_TIME_HOUR   = _saved.get("FIRST_POST_TIME_HOUR",   _DEFAULT_FIRST_POST_TIME_HOUR)
+    FIRST_POST_TIME_MINUTE = _saved.get("FIRST_POST_TIME_MINUTE", _DEFAULT_FIRST_POST_TIME_MINUTE)
+    FIRST_MAX_TOOLS        = _saved.get("FIRST_MAX_TOOLS",        _DEFAULT_FIRST_MAX_TOOLS)
 
-FIRST_POST_TIME_HOUR    = _get_int("MORNING_HOUR",        "FIRST_POST_TIME_HOUR",    _DEFAULT_FIRST_POST_TIME_HOUR)
-FIRST_POST_TIME_MINUTE  = _get_int("MORNING_MINUTE",      "FIRST_POST_TIME_MINUTE",  _DEFAULT_FIRST_POST_TIME_MINUTE)
-SECOND_POST_TIME_HOUR   = _get_int("EVENING_HOUR",        "SECOND_POST_TIME_HOUR",   _DEFAULT_SECOND_POST_TIME_HOUR)
-SECOND_POST_TIME_MINUTE = _get_int("EVENING_MINUTE",      "SECOND_POST_TIME_MINUTE", _DEFAULT_SECOND_POST_TIME_MINUTE)
-FIRST_MAX_TOOLS         = _get_int("MORNING_MAX_TOOLS",   "FIRST_MAX_TOOLS",         _DEFAULT_FIRST_MAX_TOOLS)
-SECOND_MAX_TOOLS        = _get_int("EVENING_MAX_TOOLS",   "SECOND_MAX_TOOLS",        _DEFAULT_SECOND_MAX_TOOLS)
-
-logger.info(
-    f"Settings loaded — Morning: {FIRST_POST_TIME_HOUR:02d}:{FIRST_POST_TIME_MINUTE:02d} "
-    f"({FIRST_MAX_TOOLS} tools) | Evening: {SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d} "
-    f"({SECOND_MAX_TOOLS} tools)"
-)
+if _evening:
+    SECOND_POST_TIME_HOUR, SECOND_POST_TIME_MINUTE, SECOND_MAX_TOOLS = _evening
+    logger.info(f"EVENING_POST env loaded: {SECOND_POST_TIME_HOUR:02d}:{SECOND_POST_TIME_MINUTE:02d} x{SECOND_MAX_TOOLS}")
+else:
+    SECOND_POST_TIME_HOUR   = _saved.get("SECOND_POST_TIME_HOUR",   _DEFAULT_SECOND_POST_TIME_HOUR)
+    SECOND_POST_TIME_MINUTE = _saved.get("SECOND_POST_TIME_MINUTE", _DEFAULT_SECOND_POST_TIME_MINUTE)
+    SECOND_MAX_TOOLS        = _saved.get("SECOND_MAX_TOOLS",        _DEFAULT_SECOND_MAX_TOOLS)
