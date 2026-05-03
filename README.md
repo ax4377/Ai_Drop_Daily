@@ -1,112 +1,144 @@
-# 🤖 AI Drop Daily Bot
+# AI Drop Daily Bot
 
-A fully automated Telegram bot that finds, analyzes, and posts the latest AI tools to your channel — twice every day.
+A Telegram bot that automatically fetches newly launched AI tools and posts them to a Telegram channel twice daily at 9 AM and 6 PM IST.
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://python.org)
-[![Telegram](https://img.shields.io/badge/Telegram-@Ai_Drop_Daily-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Ai_Drop_Daily)
-[![Railway](https://img.shields.io/badge/Deployed%20on-Railway-6366f1?logo=railway&logoColor=white)](https://railway.app)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+## Features
 
----
+- Fetches AI tools from Product Hunt, TheresAnAIForThat, and Hugging Face Blog RSS feeds
+- Uses Gemini AI to analyze and score each tool
+- Creates attractive image cards for each tool
+- Posts to Telegram channel with formatted captions
+- Avoids duplicate posts using SQLite database
+- Scheduled posting: 5 tools at 9 AM IST, 2 top-scored tools at 6 PM IST
+- Railway deployment ready with environment variable configuration
+- Comprehensive error handling and logging
 
-## 📺 Live Channel → [@Ai_Drop_Daily](https://t.me/Ai_Drop_Daily)
-
----
-
-## ✨ Features
-
-- 🔍 Fetches latest AI tools daily using OpenRouter AI
-- 🧠 Analyzes each tool — description, price, score, category
-- 🖼️ Generates a clean 1920×1080 banner image automatically
-- 📤 Posts to Telegram with rich caption
-- 🔔 Sends owner DM after every post (success or failure)
-- 🗃️ SQLite database to prevent duplicate posts
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
-Ai_Drop_Daily/
-├── main.py            # Entry point
-├── scheduler.py       # Morning & evening job scheduling
-├── fetcher.py         # Fetches AI tools via OpenRouter
-├── gemini_helper.py   # Analyzes & scores each tool
-├── image_maker.py     # Generates banner images (Pillow)
-├── poster.py          # Posts to Telegram channel
-├── database.py        # Duplicate tracking (SQLite)
-├── bot_commands.py    # Telegram bot commands
-├── config.py          # Env variable loader
-├── settings.py        # Schedule & limits config
-├── fonts/             # Poppins Bold & Regular
-└── requirements.txt
+ai-drop-daily-bot/
+├── main.py              # Entry point
+├── scheduler.py         # APScheduler configuration
+├── fetcher.py           # RSS feed fetching
+├── gemini_helper.py     # Gemini AI analysis
+├── image_maker.py       # Image generation with Pillow
+├── poster.py            # Telegram posting logic
+├── database.py          # SQLite database operations
+├── config.py            # Configuration from environment variables
+├── requirements.txt     # Python dependencies
+└── README.md            # This file
 ```
 
----
+## Setup Instructions
 
-## 🤖 Bot Commands
+### 1. Get Telegram Bot Token
 
-| Command | Description |
-|--------|-------------|
-| `/start` | Welcome message |
-| `/status` | View current schedule & tool counts |
-| `/setpost 09:00 18:00 5 2` | Change post times & tool counts live — no restart needed |
-| `/testnow` | Post one tool immediately for testing |
-| `/help` | Show all commands |
+1. Open Telegram and search for @BotFather
+2. Send `/newbot` and follow the instructions to create a new bot
+3. BotFather will give you a token like `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`
+4. Save this token for later use
 
-> 🔒 All commands are owner-only.
+### 2. Get Gemini API Key
 
----
+1. Go to [Google AI Studio](https://aistudio.google.com/)
+2. Sign in with your Google account
+3. Click "Get API key" and create a new API key
+4. Save this key for later use
 
-## 🚀 Quick Start
+### 3. Set Up Telegram Channel
 
-**1. Clone & install**
+1. Create a new Telegram channel (or use an existing one)
+2. Set the channel username to `@Ai_Drop_Daily` (without the @ symbol when creating)
+3. Add your bot as an administrator to the channel:
+   - Go to Channel Settings → Administrators → Add Administrator
+   - Search for your bot by username and add it
+   - Make sure the bot has permission to post messages
+
+### 4. Install Dependencies
+
 ```bash
-git clone https://github.com/your-username/Ai_Drop_Daily.git
-cd Ai_Drop_Daily
+# Clone the repository
+git clone <your-repository-url>
+cd ai-drop-daily-bot
+
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-**2. Create `.env` file**
-```env
-TELEGRAM_BOT_TOKEN=your_token
-OPENROUTER_API_KEY=your_key
-GEMINI_IMAGE_API_KEY=your_key
+### 5. Configure Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-**3. Run**
+### 6. Run the Bot Locally
+
 ```bash
 python main.py
 ```
 
----
+You should see logs indicating the bot has started and the scheduler is running.
 
-## ☁️ Deploy on Railway
+### 7. Deploy to Railway
 
-1. Push repo to GitHub
-2. New Project → Deploy from GitHub
-3. Add environment variables in Railway dashboard
-4. Start command: `python main.py`
-5. Deploy ✅
+1. Create a [Railway](https://railway.app/) account
+2. Click "New Project" → "Deploy from GitHub" (or upload directly)
+3. Select your repository
+4. Railway will automatically detect the `requirements.txt` and install dependencies
+5. Add the environment variables in Railway dashboard:
+   - Go to your project → Variables
+   - Add `TELEGRAM_BOT_TOKEN` and `GEMINI_API_KEY` with your values
+6. Set the start command to: `python main.py`
+7. Deploy the project
 
----
+### 8. Verify Deployment
 
-## ⚙️ Customize
+Once deployed, the bot should:
+- Start successfully and log "AI Drop Daily Bot Started Successfully"
+- Initialize the database
+- Start the scheduler
+- Post the first set of tools at the next scheduled time (9 AM or 6 PM IST)
 
-| Setting | File |
-|--------|------|
-| Post times & tool counts | `settings.py` |
-| Change times live | `/setpost` command on Telegram |
-| Banner design | `image_maker.py` |
-| Caption format | `poster.py` |
-| AI model | `OPENROUTER_MODEL` env variable |
+## How It Works
 
----
+1. **Scheduler**: Uses APScheduler to run jobs at 9 AM and 6 PM IST daily
+2. **Fetcher**: Retrieves new AI tools from RSS feeds using feedparser
+3. **Analyzer**: Uses Gemini AI to analyze each tool and generate descriptions, use cases, price types, scores, and emojis
+4. **Image Creator**: Generates 1080x1080 pixel image cards using Pillow with:
+   - Dark background with gradient effect
+   - Cyan top border
+   - Tool name and emoji
+   - Short description
+   - Price badge (green for Free, yellow for Freemium, red for Paid)
+   - Score display
+   - Watermark
+5. **Poster**: Sends images to Telegram channel with formatted captions
+6. **Database**: SQLite database tracks posted tools to prevent duplicates
 
-## 📄 License
+## Error Handling
 
-MIT — free to use and modify.
+- Each module has comprehensive try-except blocks
+- If one RSS feed fails, others continue to work
+- If Gemini API fails, default values are used
+- If image creation fails, a basic fallback image is generated
+- If posting to Telegram fails for one tool, others continue to be posted
+- The bot continues running even if individual steps fail
 
----
+## Customization
 
-> Follow [@Ai_Drop_Daily](https://t.me/Ai_Drop_Daily) for daily AI tool drops! 🚀
+- Adjust posting times in `scheduler.py`
+- Change the number of tools posted in `config.py` (MORNING_MAX_TOOLS, EVENING_MAX_TOOLS)
+- Modify the image design in `image_maker.py`
+- Change the caption format in `poster.py`
+- Add more RSS feeds in `fetcher.py`
+
+## License
+
+MIT License - feel free to use and modify this bot for your own AI tool sharing needs!
+
+## Support
+
+If you encounter any issues or have questions, please open an issue in the repository.

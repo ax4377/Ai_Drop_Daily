@@ -20,9 +20,6 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 # Default: google/gemini-2.5-flash
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
-# Gemini Image — banner generation
-GEMINI_IMAGE_API_KEY = os.environ.get("GEMINI_IMAGE_API_KEY")
-
 # Timezone & schedule
 TIMEZONE = TIMEZONE
 MORNING_POST_TIME_HOUR   = FIRST_POST_TIME_HOUR
@@ -37,5 +34,3 @@ if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable not set!")
-if not GEMINI_IMAGE_API_KEY:
-    raise ValueError("GEMINI_IMAGE_API_KEY environment variable not set!")

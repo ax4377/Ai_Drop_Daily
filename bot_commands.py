@@ -128,6 +128,10 @@ async def cmd_setpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         settings.FIRST_MAX_TOOLS = max1
         settings.SECOND_MAX_TOOLS = max2
 
+        # Disk pe save karo taaki restart ke baad bhi rahein
+        settings.save_runtime_settings()
+        logging.info("Runtime settings saved to disk.")
+
         # Timezone
         tz = pytz.timezone("Asia/Kolkata")
 
@@ -195,7 +199,7 @@ async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await post_morning_digest(tools[:1])
             await update.message.reply_text("✅ Test post done! Check @Ai_Drop_Daily")
         else:
-            await update.message.reply_text("⚠️ No tools fetched. Gemini API key check karo.")
+            await update.message.reply_text("⚠️ No tools fetched. OpenRouter API key / model check karo.")
 
     except Exception as e:
         logging.error(f"Error in testnow command: {e}", exc_info=True)
