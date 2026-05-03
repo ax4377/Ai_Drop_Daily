@@ -141,7 +141,7 @@ async def fetch_all_tools() -> list:
     try:
         logger.info(f"Fetching AI tools via OpenRouter ({MODEL})...")
 
-        prompt = """You are an AI tools researcher. List 15 REAL, EXISTING AI tools \
+        prompt = """You are an AI tools researcher. List 10 REAL, EXISTING AI tools \
 that are trending or recently launched in 2024-2026.
 
 CRITICAL RULES:
@@ -162,7 +162,7 @@ Productivity, Research, Other (string)
 Example of REAL tools: ChatGPT, Midjourney, Runway, ElevenLabs, Perplexity, \
 Cursor, Notion AI, etc.
 
-Return exactly 15 REAL tools. Output the JSON array as your final answer."""
+Return exactly 10 REAL tools. Output the JSON array as your final answer."""
 
         text  = _call_openrouter(prompt)
         time.sleep(1)
