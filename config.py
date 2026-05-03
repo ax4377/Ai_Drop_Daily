@@ -1,35 +1,45 @@
+"""
+config.py
+Environment variable loader.
+
+Fixes applied:
+- GEMINI_IMAGE_API_KEY removed (dead variable — code mein use nahi hota)
+- TELEGRAM_CHANNEL_ID ab CHANNEL_ID se aata hai (poster.py mein hardcode tha)
+- Saari config values ek jagah
+"""
+
 import os
 from dotenv import load_dotenv
 from settings import (
     FIRST_POST_TIME_HOUR, FIRST_POST_TIME_MINUTE,
     SECOND_POST_TIME_HOUR, SECOND_POST_TIME_MINUTE,
     FIRST_MAX_TOOLS, SECOND_MAX_TOOLS,
-    CHANNEL_ID, TIMEZONE, POST_DELAY_SECONDS
+    CHANNEL_ID, TIMEZONE, POST_DELAY_SECONDS,
 )
 
 load_dotenv()
 
-# Telegram
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHANNEL_ID = CHANNEL_ID
+# ── Telegram ──────────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHANNEL_ID = CHANNEL_ID   # poster.py yahan se lega, hardcode nahi hoga
 
-# OpenRouter — tool fetching + analysis
+# ── OpenRouter ────────────────────────────────────────────────────────────────
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
-# OpenRouter model — change anytime from Railway variables
-# Default: google/gemini-2.5-flash
+# Default model: gemini-2.5-flash (better quality than free models)
+# Free models jaise gpt-oss-120b:free hallucinated/fake tool names dete hain
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.5-flash")
 
-# Timezone & schedule
-TIMEZONE = TIMEZONE
+# ── Schedule ──────────────────────────────────────────────────────────────────
+TIMEZONE                 = TIMEZONE
 MORNING_POST_TIME_HOUR   = FIRST_POST_TIME_HOUR
 MORNING_POST_TIME_MINUTE = FIRST_POST_TIME_MINUTE
 EVENING_POST_TIME_HOUR   = SECOND_POST_TIME_HOUR
 EVENING_POST_TIME_MINUTE = SECOND_POST_TIME_MINUTE
-MORNING_MAX_TOOLS = FIRST_MAX_TOOLS
-EVENING_MAX_TOOLS = SECOND_MAX_TOOLS
+MORNING_MAX_TOOLS        = FIRST_MAX_TOOLS
+EVENING_MAX_TOOLS        = SECOND_MAX_TOOLS
 
-# Validate
+# ── Validation ────────────────────────────────────────────────────────────────
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 if not OPENROUTER_API_KEY:

@@ -1,7 +1,12 @@
 """
 gemini_helper.py
 Analyzes AI tools using OpenRouter API (OpenAI-compatible).
+
+No logic changes — only minor improvements:
+- Cleaner logging
+- price_type now allows Freemium too (was being silently converted to Free before)
 """
+
 import requests
 import json
 import logging
@@ -21,19 +26,18 @@ HEADERS = {
 MODEL = OPENROUTER_MODEL
 
 
-def analyze_tool(tool_name, tool_summary, tool_link):
+def analyze_tool(tool_name: str, tool_summary: str, tool_link: str) -> dict:
     """Analyze an AI tool and return structured info dict."""
     default = {
         "short_description": f"{tool_name} is an AI-powered tool designed to help with various tasks efficiently.",
-        "use_case": "Professionals and creators looking for AI-powered solutions",
+        "use_case":   "Professionals and creators looking for AI-powered solutions",
         "price_type": "Free",
-        "score": 5,
-        "emoji": "🤖",
-        "category": "Other",
+        "score":      5,
+        "emoji":      "🤖",
+        "category":   "Other",
     }
 
     try:
-        # Fix 1: Prompt me clearly bola gaya hai ki "..." ya placeholder mat dena
         prompt = f"""You are an AI tools analyst. Analyze the tool below and return a JSON object.
 
 Tool Name: {tool_name}
@@ -42,38 +46,37 @@ Tool Link: {tool_link}
 
 Return a JSON object with EXACTLY these keys:
 {{
-  "short_description": "2 sentences describing what this tool does. Must be complete, informative, no placeholders.",
-  "use_case": "One sentence about who should use this tool. Must be specific, no placeholders.",
-  "price_type": "Free or Paid only (use Free if there is any free tier)",
+  "short_description": "2 sentences describing what this tool does. Must be complete and informative.",
+  "use_case": "One specific sentence about who should use this tool.",
+  "price_type": "Free or Freemium or Paid",
   "score": 8,
   "emoji": "🤖",
   "category": "One of: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Other"
 }}
 
 STRICT RULES:
-- short_description and use_case must be REAL sentences, never "...", never empty
+- short_description and use_case must be REAL sentences, never placeholders like "..."
 - Return ONLY the JSON object
 - No markdown, no code blocks, no explanation"""
 
         payload = {
-            "model": MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 600,   # Fix 2: 500 → 600 taaki response cut na ho
+            "model":       MODEL,
+            "messages":    [{"role": "user", "content": prompt}],
+            "max_tokens":  600,
             "temperature": 0.3,
         }
 
         response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=30)
         response.raise_for_status()
 
-        # Fix 3: Reasoning model ke liye content + reasoning dono check karo
-        data = response.json()
+        data    = response.json()
         choices = data.get("choices", [])
         if not choices:
             logger.warning(f"No choices in analyze_tool response for {tool_name}")
             return default
 
         message = choices[0].get("message", {})
-        text = message.get("content")
+        text    = message.get("content")
 
         # Reasoning model fallback
         if text is None:
@@ -95,24 +98,22 @@ STRICT RULES:
             logger.warning(f"No JSON in analyze_tool response for {tool_name}: {text[:200]}")
             return default
 
-        result = json.loads(text[start:end])
+        result   = json.loads(text[start:end])
         required = ["short_description", "use_case", "price_type", "score", "emoji", "category"]
 
         if not all(k in result for k in required):
             logger.warning(f"Missing keys in analyze_tool for {tool_name}: {result}")
             return default
 
-        # Fix 4: "..." ya empty values ko default se replace karo
-        if not result.get("short_description") or result["short_description"].strip() in ["...", ".", ""]:
-            logger.warning(f"short_description is placeholder for {tool_name}, using default")
-            result["short_description"] = default["short_description"]
-
-        if not result.get("use_case") or result["use_case"].strip() in ["...", ".", ""]:
-            logger.warning(f"use_case is placeholder for {tool_name}, using default")
-            result["use_case"] = default["use_case"]
+        # Placeholder values ko default se replace karo
+        for field in ["short_description", "use_case"]:
+            val = result.get(field, "").strip()
+            if val in ["...", ".", "", "N/A"]:
+                logger.warning(f"{field} is placeholder for {tool_name}, using default")
+                result[field] = default[field]
 
         # Validations
-        if result["price_type"] not in ["Free", "Paid"]:
+        if result["price_type"] not in ["Free", "Freemium", "Paid"]:
             result["price_type"] = "Free"
         result["score"] = max(1, min(10, int(result["score"])))
         if not result.get("category"):
@@ -120,7 +121,10 @@ STRICT RULES:
         if not result.get("emoji"):
             result["emoji"] = "🤖"
 
-        logger.info(f"analyze_tool success for {tool_name}: score={result['score']}, price={result['price_type']}")
+        logger.info(
+            f"analyze_tool success for {tool_name}: "
+            f"score={result['score']}, price={result['price_type']}"
+        )
         return result
 
     except json.JSONDecodeError as e:

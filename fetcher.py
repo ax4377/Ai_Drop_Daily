@@ -1,8 +1,15 @@
 """
 fetcher.py
 Fetches trending AI tools using OpenRouter API (OpenAI-compatible).
-Reasoning models support included — content None hone par reasoning field use hota hai.
+
+Fixes applied:
+- Reasoning model support retained
+- Better prompt: explicitly asks for REAL, VERIFIABLE tools only
+  (free models jaise gpt-oss-120b hallucinated fake names dete the)
+- _extract_json_array: last valid array prefer karna retained
+- validate_tools_list: unchanged, still removes incomplete entries
 """
+
 import requests
 import json
 import logging
@@ -28,7 +35,6 @@ def _call_openrouter(prompt: str, max_tokens: int = 8000) -> str:
     """
     OpenRouter ko prompt bhejo aur text return karo.
     Reasoning models ke liye content + reasoning dono check karta hai.
-    max_tokens 8000 — reasoning models zyada tokens use karte hain thinking mein.
     """
     payload = {
         "model": MODEL,
@@ -45,7 +51,7 @@ def _call_openrouter(prompt: str, max_tokens: int = 8000) -> str:
         logger.error(f"No choices in response: {data}")
         raise ValueError("No choices in OpenRouter response")
 
-    message      = choices[0].get("message", {})
+    message       = choices[0].get("message", {})
     finish_reason = choices[0].get("finish_reason", "unknown")
     text          = message.get("content")
 
@@ -53,7 +59,7 @@ def _call_openrouter(prompt: str, max_tokens: int = 8000) -> str:
     if not text:
         reasoning = message.get("reasoning", "")
         if reasoning:
-            logger.info(f"Reasoning model detected — extracting from reasoning field (finish_reason={finish_reason})")
+            logger.info(f"Reasoning model: using reasoning field (finish_reason={finish_reason})")
             text = reasoning
         else:
             logger.error(f"Both content and reasoning empty. finish_reason={finish_reason}")
@@ -68,23 +74,21 @@ def _extract_json_array(text: str):
     Reasoning models aksar bohot zyada text ke beech mein JSON daalte hain —
     isliye last valid JSON array dhundho (reasoning ke baad actual answer hota hai).
     """
-    # Sabse pehle markdown code blocks hata do
-    text = re.sub(r'```(?:json)?', '', text)
+    text = re.sub(r"```(?:json)?", "", text)
 
-    # Saare [ ... ] blocks dhundo
     candidates = []
     depth = 0
     start_idx = None
 
     for i, ch in enumerate(text):
-        if ch == '[':
+        if ch == "[":
             if depth == 0:
                 start_idx = i
             depth += 1
-        elif ch == ']':
+        elif ch == "]":
             depth -= 1
             if depth == 0 and start_idx is not None:
-                candidates.append(text[start_idx:i+1])
+                candidates.append(text[start_idx : i + 1])
                 start_idx = None
 
     if not candidates:
@@ -105,7 +109,7 @@ def _extract_json_array(text: str):
     return None
 
 
-def validate_tools_list(tools):
+def validate_tools_list(tools: list) -> list:
     """Tools list validate karo — incomplete entries hata do."""
     if not tools:
         return []
@@ -127,50 +131,56 @@ def validate_tools_list(tools):
     return valid
 
 
-async def fetch_all_tools():
-    """Fetch 15 recently launched or trending AI tools via OpenRouter."""
+async def fetch_all_tools() -> list:
+    """
+    Fetch 15 real, verifiable AI tools via OpenRouter.
+
+    Prompt improvement: explicitly says REAL tools only, no hallucinations.
+    This is especially important when using free models.
+    """
     try:
         logger.info(f"Fetching AI tools via OpenRouter ({MODEL})...")
 
-        # Reasoning models ke liye prompt aur clear example diya hai
-        prompt = """You are an AI tools researcher. List 15 recently launched or trending AI tools from 2025-2026.
+        prompt = """You are an AI tools researcher. List 15 REAL, EXISTING AI tools \
+that are trending or recently launched in 2024-2026.
+
+CRITICAL RULES:
+- Only list tools that actually exist with a working website
+- Do NOT invent or hallucinate tool names
+- Each link must be a real, working URL
 
 Your final answer must be ONLY a valid JSON array — nothing else after the array.
 
 Each object must have exactly these 5 keys:
-  "name"       - tool name (string)
+  "name"       - real tool name (string)
   "link"       - real working URL starting with https:// (string)
   "summary"    - 2 sentences about what the tool does (string)
   "price_type" - exactly one of: Free, Freemium, Paid (string)
-  "category"   - one of: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Other (string)
+  "category"   - one of: Image Generation, Writing, Coding, Video, Audio, \
+Productivity, Research, Other (string)
 
-Example format:
-[
-  {
-    "name": "Midjourney",
-    "link": "https://midjourney.com",
-    "summary": "AI image generation tool that creates stunning visuals from text prompts. Supports multiple art styles and high-resolution outputs.",
-    "price_type": "Paid",
-    "category": "Image Generation"
-  }
-]
+Example of REAL tools: ChatGPT, Midjourney, Runway, ElevenLabs, Perplexity, \
+Cursor, Notion AI, etc.
 
-Return exactly 15 tools. Output the JSON array as your final answer."""
+Return exactly 15 REAL tools. Output the JSON array as your final answer."""
 
-        text = _call_openrouter(prompt)
+        text  = _call_openrouter(prompt)
         time.sleep(1)
 
         tools = _extract_json_array(text)
         if tools is None:
-            logger.warning(f"Could not extract JSON array. Text preview: {text[-500:]}")
+            logger.warning(f"Could not extract JSON. Text preview: {text[-500:]}")
             return []
 
-        tools = validate_tools_list(tools)
+        tools     = validate_tools_list(tools)
         new_tools = [t for t in tools if not is_duplicate(t["link"])]
         logger.info(f"{len(new_tools)} new tools after duplicate filter")
 
         if len(new_tools) < 3:
-            logger.warning(f"Only {len(new_tools)} new tools — may need to clear database")
+            logger.warning(
+                f"Only {len(new_tools)} new tools — consider clearing database "
+                "with /cleardb command"
+            )
 
         return new_tools
 
@@ -180,83 +190,3 @@ Return exactly 15 tools. Output the JSON array as your final answer."""
     except Exception as e:
         logger.error(f"Error fetching tools via OpenRouter: {e}")
         return []
-
-
-async def fetch_best_tool():
-    """Fetch the single most impressive AI tool via OpenRouter."""
-    try:
-        logger.info(f"Fetching best AI tool via OpenRouter ({MODEL})...")
-
-        prompt = """You are an AI tools researcher. What is the single most impressive AI tool launched in 2025-2026?
-
-Your final answer must be ONLY a valid JSON object — nothing else after the object.
-
-Required keys:
-  "name"       - tool name (string)
-  "link"       - real working URL starting with https:// (string)
-  "summary"    - 3 sentences about the tool (string)
-  "price_type" - exactly one of: Free, Freemium, Paid (string)
-  "category"   - one of: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Other (string)
-  "why_best"   - 1 sentence why it stands out (string)
-
-Output the JSON object as your final answer."""
-
-        text = _call_openrouter(prompt)
-        time.sleep(1)
-
-        # Last { ... } extract karo
-        text_clean = re.sub(r'```(?:json)?', '', text)
-        # Find last valid JSON object
-        last_obj = None
-        depth = 0
-        start_idx = None
-        for i, ch in enumerate(text_clean):
-            if ch == '{':
-                if depth == 0:
-                    start_idx = i
-                depth += 1
-            elif ch == '}':
-                depth -= 1
-                if depth == 0 and start_idx is not None:
-                    try:
-                        candidate = json.loads(text_clean[start_idx:i+1])
-                        if isinstance(candidate, dict):
-                            last_obj = candidate
-                    except:
-                        pass
-                    start_idx = None
-
-        if not last_obj:
-            raise ValueError("No valid JSON object found")
-
-        required = ["name", "link", "summary", "price_type", "category", "why_best"]
-        for field in required:
-            if field not in last_obj:
-                raise ValueError(f"Missing field: {field}")
-
-        if is_duplicate(last_obj["link"]):
-            logger.info("Best tool is duplicate, falling back to fetch_all_tools")
-            all_tools = await fetch_all_tools()
-            if all_tools:
-                return all_tools[0]
-            return _fallback_tool()
-
-        return last_obj
-
-    except Exception as e:
-        logger.error(f"Error fetching best tool via OpenRouter: {e}")
-        return _fallback_tool()
-
-
-def _fallback_tool():
-    return {
-        "name": "TheresAnAIForThat",
-        "link": "https://theresanaiforthat.com",
-        "summary": "The largest directory of AI tools updated daily. Helps you find the right AI for any task.",
-        "price_type": "Free",
-        "category": "Research",
-        "why_best": "Largest AI tools collection updated daily",
-    }
-
-
-
