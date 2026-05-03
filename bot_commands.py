@@ -1,9 +1,11 @@
 import logging
+import asyncio
 import datetime
 import pytz
 import settings  # Dynamic update ke liye module import
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, NetworkError
 
 # Import scheduler jobs for rescheduling
 from scheduler import morning_job, evening_job
@@ -165,7 +167,17 @@ async def cmd_setpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⚡ No restart needed!
         """
-        await update.message.reply_text(confirmation_message.strip())
+        # Retry logic — busy hone par timeout aa sakta hai, 3 baar try karo
+        for attempt in range(3):
+            try:
+                await update.message.reply_text(confirmation_message.strip())
+                break
+            except (TimedOut, NetworkError):
+                if attempt < 2:
+                    await asyncio.sleep(3)
+                else:
+                    # Teeno baar fail — silently log karo, settings already save ho chuki hain
+                    logging.warning("setpost: confirmation reply timeout after 3 attempts. Settings were saved.")
 
     except ValueError:
         await update.message.reply_text(
@@ -177,10 +189,17 @@ async def cmd_setpost(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logging.error(f"Error in setpost command: {e}", exc_info=True)
-        await update.message.reply_text(
-            f"❌ Error: {str(e)}\n"
-            "Railway logs check karo."
-        )
+        # Reply bhi retry karo exception case mein
+        for attempt in range(3):
+            try:
+                await update.message.reply_text(
+                    f"❌ Error: {str(e)}\n"
+                    "Railway logs check karo."
+                )
+                break
+            except (TimedOut, NetworkError):
+                if attempt < 2:
+                    await asyncio.sleep(3)
 
 
 async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
