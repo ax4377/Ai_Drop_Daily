@@ -22,6 +22,15 @@ async def morning_job(context):
         tools = await fetch_all_tools()
         logger.info(f"Fetched {len(tools)} new tools for morning post")
 
+        # Agar 0 tools aaye toh seedha error bhejo
+        if not tools:
+            logger.error("Morning job: 0 tools fetched. Model check karo.")
+            await context.bot.send_message(
+                chat_id=OWNER_ID,
+                text="❌ Post 1 failed!\nOpenRouter se koi tools nahi aaye.\nRailway mein OPENROUTER_MODEL check karo."
+            )
+            return
+
         import settings
         tools_to_post = tools[:settings.FIRST_MAX_TOOLS]
 
@@ -50,6 +59,15 @@ async def evening_job(context):
     try:
         tools = await fetch_all_tools()
         logger.info(f"Fetched {len(tools)} tools for evening post")
+
+        # Agar 0 tools aaye toh seedha error bhejo
+        if not tools:
+            logger.error("Evening job: 0 tools fetched. Model check karo.")
+            await context.bot.send_message(
+                chat_id=OWNER_ID,
+                text="❌ Post 2 failed!\nOpenRouter se koi tools nahi aaye.\nRailway mein OPENROUTER_MODEL check karo."
+            )
+            return
 
         from gemini_helper import analyze_tool
         scored_tools = []
