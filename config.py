@@ -13,18 +13,12 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHANNEL_ID = CHANNEL_ID
 
-# OpenRouter — tool fetching + analysis (fallback for analyzer)
+# OpenRouter — tool fetching + analysis
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 # OpenRouter model — change anytime from Railway variables
 # Default: google/gemini-2.5-flash
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.5-flash")
-
-# Groq — primary analyzer (faster, free tier generous)
-# Get key from: https://console.groq.com/keys
-# Default model: llama-3.3-70b-versatile (best JSON accuracy on Groq)
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL   = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Timezone & schedule
 TIMEZONE = TIMEZONE
