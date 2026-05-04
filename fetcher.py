@@ -92,7 +92,7 @@ Raw text:
 
 Return ONLY a valid JSON object with exactly these keys:
 {{
-  "name": "tool name (string)",
+  "name": "SHORT tool brand name only — max 3 words, no descriptions (e.g. 'Runway Gen-2', 'Claude Code', 'Higgsfield MCP')",
   "link": "working URL starting with https:// — extract from text or infer from tool name (string)",
   "summary": "2 clear sentences about what the tool does (string)",
   "price_type": "Free or Freemium or Paid (string)",
@@ -100,7 +100,7 @@ Return ONLY a valid JSON object with exactly these keys:
 }}
 
 Rules:
-- Extract the tool name from the text
+- "name" must be the SHORT brand/product name only — NOT a description. Examples: good: "Seedance 2.0", "GPT Image 2", "GRWM AI" — bad: "GRWM AI video using GPT Image 2 + Seedance 2.0"
 - Extract the link/URL from the text if present, otherwise use the official website
 - summary must be clear and informative
 - Return ONLY the JSON object, nothing else"""
