@@ -4,3 +4,4 @@ APScheduler==3.10.4
 pytz
 requests
 python-dotenv
+numpy
