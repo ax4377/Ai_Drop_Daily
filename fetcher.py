@@ -1,192 +1,164 @@
 """
 fetcher.py
-Fetches trending AI tools using OpenRouter API (OpenAI-compatible).
-
-Fixes applied:
-- Reasoning model support retained
-- Better prompt: explicitly asks for REAL, VERIFIABLE tools only
-  (free models jaise gpt-oss-120b hallucinated fake names dete the)
-- _extract_json_array: last valid array prefer karna retained
-- validate_tools_list: unchanged, still removes incomplete entries
+Google Sheets se aaj ke AI tools fetch karo.
+OpenRouter sirf Telegram caption format karne ke liye use hoga.
 """
-
 import requests
-import json
 import logging
-import re
-import time
-from config import OPENROUTER_API_KEY, OPENROUTER_MODEL
-from database import is_duplicate
+from datetime import datetime, timezone, timedelta
+from config import OPENROUTER_API_KEY, OPENROUTER_MODEL, GOOGLE_SHEET_ID, GOOGLE_API_KEY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-HEADERS = {
+OPENROUTER_HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://t.me/Ai_Drop_Daily",
     "X-Title": "AI Drop Daily Bot",
 }
-MODEL = OPENROUTER_MODEL
 
 
-def _call_openrouter(prompt: str, max_tokens: int = 8000) -> str:
+def _get_today_ist():
+    """Aaj ki date IST mein return karo (YYYY-MM-DD format)."""
+    ist = timezone(timedelta(hours=5, minutes=30))
+    return datetime.now(ist).strftime("%Y-%m-%d")
+
+
+def _fetch_sheet_rows():
     """
-    OpenRouter ko prompt bhejo aur text return karo.
-    Reasoning models ke liye content + reasoning dono check karta hai.
+    Google Sheets API se saari rows fetch karo.
+    Sheet structure: Column A = Date, Column B = Tools Info
+    Public sheet — API key se access hoga.
     """
-    payload = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": 0.7,
-    }
-    response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=90)
-    response.raise_for_status()
-
-    data = response.json()
-    choices = data.get("choices")
-    if not choices:
-        logger.error(f"No choices in response: {data}")
-        raise ValueError("No choices in OpenRouter response")
-
-    message       = choices[0].get("message", {})
-    finish_reason = choices[0].get("finish_reason", "unknown")
-    text          = message.get("content")
-
-    # Reasoning model fallback — content None hota hai, reasoning mein actual response hota hai
-    if not text:
-        reasoning = message.get("reasoning", "")
-        if reasoning:
-            logger.info(f"Reasoning model: using reasoning field (finish_reason={finish_reason})")
-            text = reasoning
-        else:
-            logger.error(f"Both content and reasoning empty. finish_reason={finish_reason}")
-            raise ValueError(f"Empty response. finish_reason={finish_reason}")
-
-    return text.strip()
-
-
-def _extract_json_array(text: str):
-    """
-    Text se JSON array extract karo.
-    Reasoning models aksar bohot zyada text ke beech mein JSON daalte hain —
-    isliye last valid JSON array dhundho (reasoning ke baad actual answer hota hai).
-    """
-    text = re.sub(r"```(?:json)?", "", text)
-
-    candidates = []
-    depth = 0
-    start_idx = None
-
-    for i, ch in enumerate(text):
-        if ch == "[":
-            if depth == 0:
-                start_idx = i
-            depth += 1
-        elif ch == "]":
-            depth -= 1
-            if depth == 0 and start_idx is not None:
-                candidates.append(text[start_idx : i + 1])
-                start_idx = None
-
-    if not candidates:
-        logger.warning(f"No JSON array brackets found in text (len={len(text)})")
-        return None
-
-    # Last candidate prefer karo — reasoning models mein actual answer end mein hota hai
-    for candidate in reversed(candidates):
-        try:
-            parsed = json.loads(candidate)
-            if isinstance(parsed, list) and len(parsed) > 0:
-                logger.info(f"JSON array extracted: {len(parsed)} items")
-                return parsed
-        except json.JSONDecodeError:
-            continue
-
-    logger.warning("No valid JSON array found in any candidate")
-    return None
-
-
-def validate_tools_list(tools: list) -> list:
-    """Tools list validate karo — incomplete entries hata do."""
-    if not tools:
-        return []
-    valid = []
-    for tool in tools:
-        if not isinstance(tool, dict):
-            continue
-        name    = tool.get("name", "").strip()
-        link    = tool.get("link", "").strip()
-        summary = tool.get("summary", "").strip()
-        if not name or not link or not summary:
-            continue
-        if not link.startswith("http"):
-            continue
-        valid.append(tool)
-    removed = len(tools) - len(valid)
-    if removed:
-        logger.info(f"Removed {removed} invalid tools during validation")
-    return valid
-
-
-async def fetch_all_tools() -> list:
-    """
-    Fetch 15 real, verifiable AI tools via OpenRouter.
-
-    Prompt improvement: explicitly says REAL tools only, no hallucinations.
-    This is especially important when using free models.
-    """
+    url = (
+        f"https://sheets.googleapis.com/v4/spreadsheets/{GOOGLE_SHEET_ID}"
+        f"/values/A:B?key={GOOGLE_API_KEY}"
+    )
     try:
-        logger.info(f"Fetching AI tools via OpenRouter ({MODEL})...")
-
-        prompt = """You are an AI tools researcher. List 10 REAL, EXISTING AI tools \
-that are trending or recently launched in 2024-2026.
-
-CRITICAL RULES:
-- Only list tools that actually exist with a working website
-- Do NOT invent or hallucinate tool names
-- Each link must be a real, working URL
-
-Your final answer must be ONLY a valid JSON array — nothing else after the array.
-
-Each object must have exactly these 5 keys:
-  "name"       - real tool name (string)
-  "link"       - real working URL starting with https:// (string)
-  "summary"    - 2 sentences about what the tool does (string)
-  "price_type" - exactly one of: Free, Freemium, Paid (string)
-  "category"   - one of: Image Generation, Writing, Coding, Video, Audio, \
-Productivity, Research, Other (string)
-
-Example of REAL tools: ChatGPT, Midjourney, Runway, ElevenLabs, Perplexity, \
-Cursor, Notion AI, etc.
-
-Return exactly 10 REAL tools. Output the JSON array as your final answer."""
-
-        text  = _call_openrouter(prompt)
-        time.sleep(1)
-
-        tools = _extract_json_array(text)
-        if tools is None:
-            logger.warning(f"Could not extract JSON. Text preview: {text[-500:]}")
-            return []
-
-        tools     = validate_tools_list(tools)
-        new_tools = [t for t in tools if not is_duplicate(t["link"])]
-        logger.info(f"{len(new_tools)} new tools after duplicate filter")
-
-        if len(new_tools) < 3:
-            logger.warning(
-                f"Only {len(new_tools)} new tools — consider clearing database "
-                "with /cleardb command"
-            )
-
-        return new_tools
-
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error in fetch_all_tools: {e}")
-        return []
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        rows = data.get("values", [])
+        logger.info(f"Sheet se {len(rows)} rows mili")
+        return rows
     except Exception as e:
-        logger.error(f"Error fetching tools via OpenRouter: {e}")
+        logger.error(f"Google Sheets fetch error: {e}")
         return []
+
+
+def _parse_sheet_date(date_str: str) -> str:
+    """
+    Sheet ki date ko YYYY-MM-DD format mein convert karo.
+    Support: ISO format (2026-04-19T13:18:01+00:00) aur plain (2026-04-19)
+    """
+    if not date_str:
+        return ""
+    try:
+        date_part = date_str.strip().split("T")[0]
+        datetime.strptime(date_part, "%Y-%m-%d")
+        return date_part
+    except Exception:
+        return date_str.strip()
+
+
+def _get_todays_tools_from_sheet():
+    """
+    Sheet se aaj ki date wale tools filter karo.
+    Returns: list of raw tool text strings
+    """
+    today = _get_today_ist()
+    logger.info(f"Aaj ki date (IST): {today}")
+
+    rows = _fetch_sheet_rows()
+    if not rows:
+        return []
+
+    # Row 1 header skip karo
+    tools_today = []
+    for row in rows[1:]:
+        if len(row) < 2:
+            continue
+        date_cell = _parse_sheet_date(row[0])
+        tool_text = row[1].strip() if row[1] else ""
+
+        if date_cell == today and tool_text:
+            tools_today.append(tool_text)
+
+    logger.info(f"Aaj ke {len(tools_today)} tools mile sheet mein")
+    return tools_today
+
+
+def _format_caption_via_openrouter(raw_text: str) -> str:
+    """
+    OpenRouter se raw tool text ko clean Telegram caption mein convert karo.
+    Sirf formatting — jo sheet mein hai wohi use hoga, kuch invent nahi hoga.
+    """
+    prompt = f"""You are a Telegram channel formatter for an AI tools channel called "AI Drop Daily".
+
+Convert the following raw AI tool description into a clean, engaging Telegram post caption.
+
+Rules:
+- Start with a relevant emoji + tool name in bold (use *bold* markdown)
+- Write 2-3 clean lines about what the tool does (use the info given, do not invent)
+- If a link/repo is mentioned in the text, include it as: 🔗 <link>
+- End with relevant hashtags: #AI #AITools #AIDrop
+- Keep total length under 280 characters (excluding hashtags)
+- Do NOT add any info that is not in the original text
+- Output ONLY the caption, nothing else
+
+Raw text:
+{raw_text}"""
+
+    try:
+        payload = {
+            "model": OPENROUTER_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 400,
+            "temperature": 0.5,
+        }
+        response = requests.post(
+            OPENROUTER_URL, headers=OPENROUTER_HEADERS, json=payload, timeout=60
+        )
+        response.raise_for_status()
+        data = response.json()
+        choices = data.get("choices")
+        if not choices:
+            logger.error(f"OpenRouter no choices: {data}")
+            return raw_text
+
+        caption = choices[0].get("message", {}).get("content", "").strip()
+        if not caption:
+            return raw_text
+
+        return caption
+
+    except Exception as e:
+        logger.error(f"OpenRouter caption format error: {e}")
+        return raw_text  # Fallback — raw text as-is
+
+
+async def fetch_all_tools():
+    """
+    Main function — scheduler.py ye call karta hai.
+    Google Sheet se aaj ke tools lao, OpenRouter se format karo.
+    Returns: list of dicts with 'caption' key ready for posting.
+    """
+    raw_tools = _get_todays_tools_from_sheet()
+
+    if not raw_tools:
+        logger.warning("Aaj ke liye sheet mein koi tools nahi mile.")
+        return []
+
+    formatted_tools = []
+    for i, raw_text in enumerate(raw_tools):
+        logger.info(f"Formatting tool {i+1}/{len(raw_tools)}...")
+        caption = _format_caption_via_openrouter(raw_text)
+        formatted_tools.append({
+            "caption": caption,
+            "raw": raw_text,
+        })
+
+    logger.info(f"Total {len(formatted_tools)} tools formatted aur ready")
+    return formatted_tools
