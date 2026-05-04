@@ -1,18 +1,22 @@
 """
 fetcher.py
-Google Sheets se aaj ke AI tools fetch karo.
-OpenRouter sirf Telegram caption format karne ke liye use hoga.
+Google Sheets se aaj ke raw AI tool text fetch karo.
+OpenRouter se name, link, summary, price_type, category extract karo.
+poster.py + gemini_helper.py baki kaam karenge — purana format same rahega.
 """
 import requests
+import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from config import OPENROUTER_API_KEY, OPENROUTER_MODEL, GOOGLE_SHEET_ID, GOOGLE_API_KEY
+from database import is_duplicate
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_HEADERS = {
+HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://t.me/Ai_Drop_Daily",
@@ -21,17 +25,11 @@ OPENROUTER_HEADERS = {
 
 
 def _get_today_ist():
-    """Aaj ki date IST mein return karo (YYYY-MM-DD format)."""
     ist = timezone(timedelta(hours=5, minutes=30))
     return datetime.now(ist).strftime("%Y-%m-%d")
 
 
 def _fetch_sheet_rows():
-    """
-    Google Sheets API se saari rows fetch karo.
-    Sheet structure: Column A = Date, Column B = Tools Info
-    Public sheet — API key se access hoga.
-    """
     url = (
         f"https://sheets.googleapis.com/v4/spreadsheets/{GOOGLE_SHEET_ID}"
         f"/values/A:B?key={GOOGLE_API_KEY}"
@@ -39,8 +37,7 @@ def _fetch_sheet_rows():
     try:
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        data = response.json()
-        rows = data.get("values", [])
+        rows = response.json().get("values", [])
         logger.info(f"Sheet se {len(rows)} rows mili")
         return rows
     except Exception as e:
@@ -49,10 +46,6 @@ def _fetch_sheet_rows():
 
 
 def _parse_sheet_date(date_str: str) -> str:
-    """
-    Sheet ki date ko YYYY-MM-DD format mein convert karo.
-    Support: ISO format (2026-04-19T13:18:01+00:00) aur plain (2026-04-19)
-    """
     if not date_str:
         return ""
     try:
@@ -63,102 +56,126 @@ def _parse_sheet_date(date_str: str) -> str:
         return date_str.strip()
 
 
-def _get_todays_tools_from_sheet():
-    """
-    Sheet se aaj ki date wale tools filter karo.
-    Returns: list of raw tool text strings
-    """
+def _get_todays_raw_tools():
     today = _get_today_ist()
     logger.info(f"Aaj ki date (IST): {today}")
-
     rows = _fetch_sheet_rows()
     if not rows:
         return []
-
-    # Row 1 header skip karo
     tools_today = []
     for row in rows[1:]:
         if len(row) < 2:
             continue
-        date_cell = _parse_sheet_date(row[0])
-        tool_text = row[1].strip() if row[1] else ""
-
-        if date_cell == today and tool_text:
-            tools_today.append(tool_text)
-
-    logger.info(f"Aaj ke {len(tools_today)} tools mile sheet mein")
+        if _parse_sheet_date(row[0]) == today and row[1].strip():
+            tools_today.append(row[1].strip())
+    logger.info(f"Aaj ke {len(tools_today)} raw tools mile sheet mein")
     return tools_today
 
 
-def _format_caption_via_openrouter(raw_text: str) -> str:
+def _extract_tool_fields(raw_text: str) -> dict:
     """
-    OpenRouter se raw tool text ko clean Telegram caption mein convert karo.
-    Sirf formatting — jo sheet mein hai wohi use hoga, kuch invent nahi hoga.
+    OpenRouter se raw text ko parse karke structured fields nikalo.
+    name, link, summary, price_type, category — poster.py ko ye chahiye.
     """
-    prompt = f"""You are a Telegram channel formatter for an AI tools channel called "AI Drop Daily".
+    default = {
+        "name": "AI Tool",
+        "link": "https://theresanaiforthat.com",
+        "summary": raw_text[:200],
+        "price_type": "Free",
+        "category": "Other",
+    }
 
-Convert the following raw AI tool description into a clean, engaging Telegram post caption.
-
-Rules:
-- Start with a relevant emoji + tool name in bold (use *bold* markdown)
-- Write 2-3 clean lines about what the tool does (use the info given, do not invent)
-- If a link/repo is mentioned in the text, include it as: 🔗 <link>
-- End with relevant hashtags: #AI #AITools #AIDrop
-- Keep total length under 280 characters (excluding hashtags)
-- Do NOT add any info that is not in the original text
-- Output ONLY the caption, nothing else
+    prompt = f"""Extract structured information from this AI tool description.
 
 Raw text:
-{raw_text}"""
+{raw_text}
+
+Return ONLY a valid JSON object with exactly these keys:
+{{
+  "name": "tool name (string)",
+  "link": "working URL starting with https:// — extract from text or infer from tool name (string)",
+  "summary": "2 clear sentences about what the tool does (string)",
+  "price_type": "Free or Freemium or Paid (string)",
+  "category": "one of: Image Generation, Writing, Coding, Video, Audio, Productivity, Research, Other (string)"
+}}
+
+Rules:
+- Extract the tool name from the text
+- Extract the link/URL from the text if present, otherwise use the official website
+- summary must be clear and informative
+- Return ONLY the JSON object, nothing else"""
 
     try:
         payload = {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 400,
-            "temperature": 0.5,
+            "temperature": 0.3,
         }
-        response = requests.post(
-            OPENROUTER_URL, headers=OPENROUTER_HEADERS, json=payload, timeout=60
-        )
+        response = requests.post(OPENROUTER_URL, headers=HEADERS, json=payload, timeout=60)
         response.raise_for_status()
+
         data = response.json()
         choices = data.get("choices")
         if not choices:
             logger.error(f"OpenRouter no choices: {data}")
-            return raw_text
+            return default
 
-        caption = choices[0].get("message", {}).get("content", "").strip()
-        if not caption:
-            return raw_text
+        text = choices[0].get("message", {}).get("content", "").strip()
+        if not text:
+            return default
 
-        return caption
+        # JSON extract karo
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start == -1 or end == 0:
+            logger.warning(f"No JSON found in extract response: {text[:200]}")
+            return default
+
+        result = json.loads(text[start:end])
+
+        # Validate required fields
+        for field in ["name", "link", "summary", "price_type", "category"]:
+            if not result.get(field):
+                result[field] = default[field]
+
+        if not result["link"].startswith("http"):
+            result["link"] = default["link"]
+
+        if result["price_type"] not in ["Free", "Freemium", "Paid"]:
+            result["price_type"] = "Free"
+
+        logger.info(f"Extracted tool: {result['name']} | {result['link']}")
+        return result
 
     except Exception as e:
-        logger.error(f"OpenRouter caption format error: {e}")
-        return raw_text  # Fallback — raw text as-is
+        logger.error(f"Error extracting tool fields: {e}")
+        return default
 
 
-async def fetch_all_tools():
+async def fetch_all_tools() -> list:
     """
     Main function — scheduler.py ye call karta hai.
-    Google Sheet se aaj ke tools lao, OpenRouter se format karo.
-    Returns: list of dicts with 'caption' key ready for posting.
+    Google Sheet se raw text lao → OpenRouter se fields nikalo → list return karo.
+    poster.py + gemini_helper.py same purane format mein kaam karenge.
     """
-    raw_tools = _get_todays_tools_from_sheet()
+    raw_tools = _get_todays_raw_tools()
 
     if not raw_tools:
         logger.warning("Aaj ke liye sheet mein koi tools nahi mile.")
         return []
 
-    formatted_tools = []
+    structured_tools = []
     for i, raw_text in enumerate(raw_tools):
-        logger.info(f"Formatting tool {i+1}/{len(raw_tools)}...")
-        caption = _format_caption_via_openrouter(raw_text)
-        formatted_tools.append({
-            "caption": caption,
-            "raw": raw_text,
-        })
+        logger.info(f"Extracting fields for tool {i+1}/{len(raw_tools)}...")
+        tool = _extract_tool_fields(raw_text)
 
-    logger.info(f"Total {len(formatted_tools)} tools formatted aur ready")
-    return formatted_tools
+        # Duplicate check
+        if is_duplicate(tool["link"]):
+            logger.info(f"Duplicate skip: {tool['link']}")
+            continue
+
+        structured_tools.append(tool)
+
+    logger.info(f"Total {len(structured_tools)} tools ready for posting")
+    return structured_tools
