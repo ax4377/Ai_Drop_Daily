@@ -3,12 +3,12 @@
 A fully automated Telegram bot that finds, analyzes, and posts the latest AI tools to your channel — twice every day.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://python.org)
-[![Telegram](https://img.shields.io/badge/Telegram-@Ai_Drop_Daily-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Ai_Drop_Daily)
+[![Telegram](https://img.shields.io/badge/Telegram-@AiTool_s-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Ai_Drop_Daily)
 [![Railway](https://img.shields.io/badge/Deployed%20on-Railway-6366f1?logo=railway&logoColor=white)](https://railway.app)
 
 ---
 
-## 📺 Live Channel → [@Ai_Drop_Daily](https://t.me/Ai_Drop_Daily)
+## 📺 Live Channel → [@AiTool_s](https://t.me/Ai_Drop_Daily)
 
 ---
 
