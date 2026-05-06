@@ -25,7 +25,7 @@ _DEFAULT_FIRST_MAX_TOOLS         = 5
 _DEFAULT_SECOND_MAX_TOOLS        = 2
 
 # Channel Settings
-CHANNEL_ID         = "@Ai_Drop_Daily"
+CHANNEL_ID         = "@AiTool_s"
 TIMEZONE           = "Asia/Kolkata"
 POST_DELAY_SECONDS = 30
 
