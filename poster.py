@@ -38,7 +38,7 @@ def generate_tags(price_type: str, category: str) -> str:
     else:
         category_tag = "#other"
 
-    return f"{price_tag} {category_tag} #AITools @Ai_Drop_Daily"
+    return f"{price_tag} {category_tag} #AITools @AiTool_s"
 
 
 async def post_tools_to_channel(tools_list: list, session_type: str):
