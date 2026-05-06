@@ -84,7 +84,7 @@ def make_gold_gradient_text(img, text, font, cx, y, W):
 
 
 def create_tool_card(tool_name, short_description, price_type, emoji, score,
-                     watermark="@Ai_Drop_Daily"):
+                     watermark="@AiTool_s"):
     W, H = 1920, 1080
 
     # ── Background: warm beige diagonal gradient ─────────────────
