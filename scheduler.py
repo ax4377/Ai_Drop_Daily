@@ -31,7 +31,7 @@ async def sheet_check_job(context):
 
         await context.bot.send_message(
             chat_id=OWNER_ID,
-            text=f"✅ {len(tools)} tools posted!\nCheck @Ai_Drop_Daily"
+            text=f"✅ {len(tools)} tools posted!\nCheck @AiTool_s"
         )
 
     except Exception as e:
