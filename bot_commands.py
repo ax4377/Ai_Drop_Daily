@@ -40,7 +40,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ⏰ Check Interval: Har 2 ghante
 📊 Source: Google Sheets
-📢 Channel: @Ai_Drop_Daily
+📢 Channel: @AiTool_s
 
 Naya tool sheet mein add karo — bot automatically post kar dega!
     """
@@ -63,7 +63,7 @@ async def cmd_testnow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for attempt in range(3):
                 try:
                     await update.message.reply_text(
-                        f"✅ {len(tools)} tools posted! Check @Ai_Drop_Daily"
+                        f"✅ {len(tools)} tools posted! Check @AiTool_s"
                     )
                     break
                 except (TimedOut, NetworkError):
